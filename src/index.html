@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; connect-src 'self'; manifest-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#3D2A6B">
+<title>AI4101 · My Work</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css?v=2">
+<script type="module" src="app.js?v=2"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-code">AI4101</span>
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-name">My Work</span>
+    </div>
+    <div class="topbar-actions">
+      <button type="button" class="icon-btn" id="themeBtn" aria-label="Switch light or dark mode">
+        <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>
+        <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+      </button>
+      <button type="button" class="text-btn" id="signOutBtn" hidden>Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+
+  <!-- Sign in -->
+  <section id="loginView" class="view login" aria-labelledby="loginTitle">
+    <div class="login-card">
+      <p class="eyebrow">Artificial Intelligence Principles</p>
+      <h1 id="loginTitle">Your marked work</h1>
+      <p class="lead">See your marked work, your feedback, and your scanned sheets.</p>
+
+      <form id="loginForm" novalidate autocomplete="off">
+        <div class="field">
+          <label for="sid">University ID</label>
+          <input id="sid" name="sid" inputmode="numeric" pattern="[0-9]*" autocomplete="username" spellcheck="false" required>
+        </div>
+        <div class="field">
+          <label for="code">Access code</label>
+          <input id="code" name="code" class="mono" autocomplete="current-password" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX" required>
+          <p class="hint">Your instructor sent you this code in a private message.</p>
+        </div>
+
+        <div id="loginError" class="alert" role="alert" hidden>
+          <p>Student ID or access code is incorrect.</p>
+          <p class="ar" dir="rtl" lang="ar">الرقم الجامعي أو رمز الدخول غير صحيح.</p>
+        </div>
+        <p id="loginNotice" class="notice" role="status" hidden></p>
+
+        <button type="submit" class="btn-primary" id="loginBtn">
+          <span class="btn-label">Open my work</span>
+          <span class="spinner" aria-hidden="true"></span>
+        </button>
+      </form>
+
+      <div class="login-help">
+        <p class="ar" dir="rtl" lang="ar">أدخل رقمك الجامعي ورمز الدخول الذي وصلك من أستاذ المقرر في رسالة خاصة.</p>
+        <p><strong>Keep your code private.</strong> Anyone with your ID and code can see your work.</p>
+        <p class="ar" dir="rtl" lang="ar">رمزك خاص بك، فلا تشاركه أحداً.</p>
+        <p class="muted">Lost your code? Send your instructor a message on Blackboard.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- All my work -->
+  <section id="homeView" class="view" hidden aria-labelledby="homeTitle"></section>
+
+  <!-- One item -->
+  <section id="itemView" class="view" hidden></section>
+
+</main>
+
+<footer class="footer">
+  <p>AI4101 · Artificial Intelligence Principles · Umm Al-Qura University</p>
+  <p class="muted">Your work is decrypted only on this device. Nothing is stored after you sign out.</p>
+</footer>
+
+<!-- Scanned page viewer -->
+<div id="viewer" class="viewer" hidden role="dialog" aria-modal="true" aria-label="Scanned page">
+  <div class="viewer-bar">
+    <span id="viewerCount" class="viewer-count"></span>
+    <button type="button" class="viewer-btn" id="viewerClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="viewer-stage" id="viewerStage">
+    <img id="viewerImg" alt="" draggable="false">
+  </div>
+  <div class="viewer-bar viewer-bottom">
+    <button type="button" class="viewer-btn" id="viewerPrev" aria-label="Previous page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <span class="viewer-hint">Pinch or double-tap to zoom</span>
+    <button type="button" class="viewer-btn" id="viewerNext" aria-label="Next page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+</div>
+</body>
+</html>
