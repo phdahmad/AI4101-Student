@@ -3,9 +3,9 @@
 import {
   ITERATIONS, normalizeId, normalizeToken, fromHex,
   deriveMaster, locatorOf, decryptBundle, unpackPayload,
-} from './crypto.js?v=3';
-import { createViewer } from './viewer.js?v=3';
-import { t, getLang, applyLang } from './i18n.js?v=3';
+} from './crypto.js?v=4';
+import { createViewer } from './viewer.js?v=4';
+import { t, getLang, applyLang } from './i18n.js?v=4';
 
 const IDLE_MS = 15 * 60 * 1000;
 const THEME_KEY = 'ai4101_portal_theme';
@@ -222,6 +222,32 @@ function itemCard(it) {
   side));
 }
 
+// ---------- feedback: one card per part of the sheet ----------
+// The summary becomes the first card (its title comes from summaryRef, or from a
+// leading "Part A:" in the text). Points whose title starts with "Item" are the
+// details of that first part, so they are shown inside its card.
+function feedbackList(fb) {
+  const points = fb.points ?? [];
+  const isDetail = (p) => /^Item\b/.test(p.ref ?? '');
+  const cards = [];
+  if (fb.summary) {
+    let ref = fb.summaryRef ?? null, text = fb.summary;
+    const m = !ref && /^(Part [A-Z])\s*:\s*([\s\S]*)$/.exec(text);
+    if (m) { ref = m[1]; text = m[2].charAt(0).toUpperCase() + m[2].slice(1); }
+    const details = points.filter(isDetail);
+    cards.push(h('li', {},
+      ref && h('span', { class: 'ref' }, ref),
+      h('span', { class: 'pt-text' }, text),
+      details.length && h('ul', { class: 'subpoints' }, details.map((p) =>
+        h('li', {}, h('span', { class: 'subref' }, p.ref), h('span', {}, p.text))))));
+  }
+  for (const p of points) {
+    if (fb.summary && isDetail(p)) continue;
+    cards.push(h('li', {}, p.ref && h('span', { class: 'ref' }, p.ref), h('span', { class: 'pt-text' }, p.text)));
+  }
+  return en('ul', { class: 'points' }, cards);
+}
+
 // ---------- one item ----------
 function renderItem(id) {
   const it = session.data.items.find((x) => x.id === id);
@@ -255,11 +281,7 @@ function renderItem(id) {
     const panel = h('section', { class: 'card panel', 'aria-labelledby': 'fbTitle' }, h('h2', { id: 'fbTitle' }, fb ? t('feedback') : t('statusTitle')));
     if (intro) panel.append(h('p', { class: 'muted' }, intro));
     if (fb && t('feedbackLang')) panel.append(h('p', { class: 'fb-lang' }, t('feedbackLang')));
-    if (fb?.summary) panel.append(en('p', { class: 'fb-en' }, fb.summary));
-    if (fb?.points?.length) {
-      panel.append(en('ul', { class: 'points' }, fb.points.map((p) =>
-        h('li', {}, p.ref && h('span', { class: 'ref' }, p.ref), p.text))));
-    }
+    if (fb) panel.append(feedbackList(fb));
     if (fb) panel.append(h('p', { class: 'review-note' }, t('reviewed')));
     parts.push(panel);
   }

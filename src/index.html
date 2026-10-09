@@ -10,8 +10,8 @@
 <meta name="theme-color" content="#3D2A6B">
 <title>AI4101 · My Work</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="styles.css?v=3">
-<script type="module" src="app.js?v=3"></script>
+<link rel="stylesheet" href="styles.css?v=4">
+<script type="module" src="app.js?v=4"></script>
 </head>
 <body>
 <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
@@ -100,7 +100,13 @@
     <button type="button" class="viewer-btn" id="viewerPrev" data-i18n-label="prev" aria-label="Previous page">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
     </button>
-    <span class="viewer-hint" data-i18n="zoomHint">Pinch or double-tap to zoom</span>
+    <button type="button" class="viewer-btn" id="viewerZoomOut" data-i18n-label="zoomOut" aria-label="Zoom out">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>
+    </button>
+    <span class="viewer-hint" data-i18n="zoomHint">Scroll to move · double-click or pinch to zoom</span>
+    <button type="button" class="viewer-btn" id="viewerZoomIn" data-i18n-label="zoomIn" aria-label="Zoom in">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg>
+    </button>
     <button type="button" class="viewer-btn" id="viewerNext" data-i18n-label="next" aria-label="Next page">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
     </button>

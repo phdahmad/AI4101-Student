@@ -230,8 +230,13 @@ input:focus { border-color: var(--primary); outline: 3px solid color-mix(in srgb
 .viewer-btn { width: 48px; height: 48px; border-radius: 12px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.06); color: #F2EEE7; display: grid; place-items: center; cursor: pointer; }
 .viewer-btn[disabled] { opacity: .35; cursor: default; }
 .viewer-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.viewer-stage { position: relative; overflow: hidden; touch-action: none; display: grid; place-items: center; }
-.viewer-stage img { max-width: 100%; max-height: 100%; transform-origin: 0 0; user-select: none; -webkit-user-select: none; background: #fff; will-change: transform; }
+.viewer-stage { position: relative; overflow: auto; touch-action: pan-x pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.viewer-stage img { display: block; margin: 8px auto 24px; max-width: none; height: auto; user-select: none; -webkit-user-select: none; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.5); }
+.viewer.zoomed .viewer-stage { cursor: grab; }
+.viewer.zoomed .viewer-stage:active { cursor: grabbing; }
+.viewer-bottom { gap: 8px; }
+.viewer-hint { flex: 1; }
+@media (max-width: 420px) { .viewer-hint { display: none; } .viewer-bottom { justify-content: space-between; } }
 
 /* ---------- larger screens ---------- */
 @media (min-width: 640px) {
@@ -269,3 +274,13 @@ input[dir="ltr"] { text-align: left; }
   .text-btn { padding: 0 10px; }
 }
 [dir="rtl"] h1[lang="en"] { text-align: right; }
+.points .pt-text { display: block; }
+.subpoints { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.subpoints li { padding: 8px 10px; background: var(--surface); border-radius: 8px; border: 1px solid var(--line); }
+.subpoints .subref { display: block; font-weight: 700; font-size: .84rem; color: var(--ink); margin-bottom: 2px; }
+/* each part of the sheet is one clear card */
+.points > li > .ref { font-size: .98rem; color: var(--ink); padding-bottom: 6px; margin-bottom: 8px; border-bottom: 1px solid var(--line); }
+.points > li { padding: 12px 14px; }
+.subpoints { margin-top: 12px; }
+.subpoints li { border-inline-start: 3px solid var(--miss-ink); }
+.subpoints .subref { color: var(--miss-ink); }

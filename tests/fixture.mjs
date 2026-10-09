@@ -43,7 +43,14 @@ export function makeData({ approved = true } = {}) {
     students: {
       [FAKE[0].id]: {
         status: 'completed',
-        feedback: { summary: 'SECRET-FEEDBACK-A', points: [{ ref: 'Item 8', text: 'A fixed workflow decides nothing.' }] },
+        feedback: {
+          summary: 'Your classifications match the answer key except item 8. SECRET-FEEDBACK-A', summaryRef: 'Part A · classify each system',
+          points: [
+            { ref: 'Item 8 · college workflow', text: 'A fixed workflow decides nothing.' },
+            { ref: 'Part B · form and area', text: 'All four are right.' },
+            { ref: 'Part C · exit question', text: 'Add the goal.' },
+          ],
+        },
         pages: [`batches/M1-ACT1/web/${FAKE[0].id}_p1.webp`, `batches/M1-ACT1/web/${FAKE[0].id}_p2.webp`],
       },
       [FAKE[1].id]: {
