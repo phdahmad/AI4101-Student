@@ -2,7 +2,7 @@
 // drag to pan, swipe (when not zoomed) or buttons/arrow keys to change page.
 const $ = (id) => document.getElementById(id);
 
-export function createViewer() {
+export function createViewer(label = { pageOf: (i, n) => `Page ${i} of ${n}`, scannedOf: (i, n) => `Scanned page ${i} of ${n}` }) {
   const root = $('viewer'), stage = $('viewerStage'), img = $('viewerImg');
   const count = $('viewerCount'), prev = $('viewerPrev'), next = $('viewerNext'), close = $('viewerClose');
   let urls = [], index = 0, lastFocus = null;
@@ -92,8 +92,8 @@ export function createViewer() {
     if (i < 0 || i >= urls.length) return;
     index = i;
     img.src = urls[index];
-    img.alt = `Scanned page ${index + 1} of ${urls.length}`;
-    count.textContent = `Page ${index + 1} of ${urls.length}`;
+    img.alt = label.scannedOf(index + 1, urls.length);
+    count.textContent = label.pageOf(index + 1, urls.length);
     prev.disabled = index === 0;
     next.disabled = index === urls.length - 1;
     reset();

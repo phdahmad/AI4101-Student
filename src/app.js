@@ -3,27 +3,18 @@
 import {
   ITERATIONS, normalizeId, normalizeToken, fromHex,
   deriveMaster, locatorOf, decryptBundle, unpackPayload,
-} from './crypto.js?v=2';
-import { createViewer } from './viewer.js?v=2';
+} from './crypto.js?v=3';
+import { createViewer } from './viewer.js?v=3';
+import { t, getLang, applyLang } from './i18n.js?v=3';
 
 const IDLE_MS = 15 * 60 * 1000;
 const THEME_KEY = 'ai4101_portal_theme';
-const KIND_ORDER = [
-  ['activity', 'In-class activities'], ['quiz', 'Quizzes'], ['assignment', 'Assignments'],
-  ['lab', 'Labs'], ['midterm', 'Midterm exam'], ['project', 'Group project'], ['final', 'Final exam'],
-];
-const KIND_SINGULAR = {
-  activity: 'In-class activity', quiz: 'Quiz', assignment: 'Assignment', lab: 'Lab',
-  midterm: 'Midterm exam', project: 'Group project', final: 'Final exam',
-};
-const STATUS_LABEL = {
-  completed: 'Completed', graded: 'Marked', not_submitted: 'Not submitted',
-  excused: 'Excused', marking: 'Being marked', upcoming: 'Not marked yet',
-};
+const KIND_ORDER = ['activity', 'quiz', 'assignment', 'lab', 'midterm', 'project', 'final'];
 
 const $ = (id) => document.getElementById(id);
 const views = { login: $('loginView'), home: $('homeView'), item: $('itemView') };
-const viewer = createViewer();
+const viewer = createViewer({ pageOf: (i, n) => t('pageOf', i, n), scannedOf: (i, n) => t('scannedOf', i, n) });
+let current = { view: 'login', id: null };
 let session = null;   // { data, blobs, urls: Map }
 let idleTimer = null;
 
@@ -46,11 +37,20 @@ const svg = (d, cls = 'chev') => {
   return s;
 };
 const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0$/, ''));
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const fmtDate = (iso) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? '');
-  return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : null;
+  return m ? `${Number(m[3])} ${t('months')[Number(m[2]) - 1]} ${m[1]}` : null;
 };
+// English course content inside an Arabic page keeps its own direction.
+const en = (tag, attrs, ...kids) => h(tag, { ...attrs, dir: 'ltr', lang: 'en' }, ...kids);
+
+// ---------- language ----------
+applyLang();
+$('langBtn').addEventListener('click', () => {
+  applyLang(getLang() === 'ar' ? 'en' : 'ar');
+  if (session && current.view === 'home') renderHome();
+  if (session && current.view === 'item') renderItem(current.id);
+});
 
 // ---------- theme ----------
 function storedTheme() { try { return localStorage.getItem(THEME_KEY); } catch { return null; } }
@@ -67,8 +67,10 @@ $('themeBtn').addEventListener('click', () => {
 
 // ---------- views ----------
 function show(name) {
+  current.view = name;
   for (const [k, el] of Object.entries(views)) el.hidden = k !== name;
   $('signOutBtn').hidden = name === 'login';
+  document.body.classList.toggle('signed-in', name !== 'login');
   window.scrollTo(0, 0);
   $('main').focus({ preventScroll: true });
 }
@@ -87,7 +89,7 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
   err.hidden = true; notice.hidden = true;
   btn.disabled = true;
-  btn.querySelector('.btn-label').textContent = 'Opening…';
+  btn.querySelector('.btn-label').textContent = t('opening');
   try {
     session = await unlock($('sid').value, $('code').value);
     form.reset();
@@ -97,7 +99,7 @@ form.addEventListener('submit', async (e) => {
     armIdle();
   } catch (ex) {
     if (ex && ex.message === 'offline') {
-      notice.textContent = 'Could not reach the page. Check your internet connection and try again.';
+      notice.textContent = t('offline');
       notice.hidden = false;
     } else {
       err.hidden = false;
@@ -105,7 +107,7 @@ form.addEventListener('submit', async (e) => {
     $('code').select();
   } finally {
     btn.disabled = false;
-    btn.querySelector('.btn-label').textContent = 'Open my work';
+    btn.querySelector('.btn-label').textContent = t('openBtn');
   }
 });
 
@@ -157,7 +159,7 @@ $('signOutBtn').addEventListener('click', () => signOut());
 
 function armIdle() {
   clearTimeout(idleTimer);
-  if (session) idleTimer = setTimeout(() => signOut('You were signed out after 15 minutes without activity.'), IDLE_MS);
+  if (session) idleTimer = setTimeout(() => signOut(t('idle')), IDLE_MS);
 }
 for (const ev of ['pointerdown', 'keydown', 'scroll', 'touchstart']) addEventListener(ev, armIdle, { passive: true });
 
@@ -169,31 +171,32 @@ addEventListener('popstate', (e) => {
 });
 
 // ---------- home ----------
-function chip(status) { return h('span', { class: `chip ${status}` }, STATUS_LABEL[status] ?? status); }
+function chip(status) { return h('span', { class: `chip ${status}` }, t('status')[status] ?? status); }
 
 function renderHome() {
   const { student, categories, items, course } = session.data;
-  const lab = student.lab ? `Lab section ${student.lab}` : null;
+  const lab = student.lab ? t('lab', student.lab) : null;
 
   const hello = h('div', { class: 'hello' },
-    h('p', { class: 'eyebrow' }, `${course?.code ?? 'AI4101'} · ${course?.term ?? ''}`.replace(/ · $/, '')),
+    h('p', { class: 'eyebrow' }, h('bdi', { dir: 'ltr' }, course?.code ?? 'AI4101'), ' · ', t('term')),
     h('h1', { id: 'homeTitle' }, h('bdi', { class: 'name', dir: 'rtl', lang: 'ar' }, student.name)),
     h('p', { class: 'hello-meta' },
-      h('span', {}, 'ID ', h('span', { class: 'mono' }, student.id)),
+      h('span', {}, t('id'), ' ', h('bdi', { class: 'mono', dir: 'ltr' }, student.id)),
       lab && h('span', {}, lab)));
 
   const rows = categories.map((c) => h('li', { class: 'marks-row' },
-    h('span', { class: 'cat' }, c.label, h('span', { class: 'weight' }, `${c.weight}% of the course`)),
+    h('span', { class: 'cat' }, t('categories')[c.key] ?? c.label, h('span', { class: 'weight' }, t('ofCourse', c.weight))),
     c.recorded
-      ? h('span', { class: 'val' }, `${fmt(c.earned)} / ${fmt(c.outOf)}`)
-      : h('span', { class: 'val none' }, 'Not marked yet')));
+      ? h('span', { class: 'val' }, h('bdi', { dir: 'ltr' }, `${fmt(c.earned)} / ${fmt(c.outOf)}`))
+      : h('span', { class: 'val none' }, t('notMarked'))));
   const marks = h('section', { class: 'card marks', 'aria-labelledby': 'marksTitle' },
-    h('h2', { id: 'marksTitle' }, 'Course marks so far'),
-    h('p', { class: 'marks-sub' }, 'Marks count toward your course grade only after each assessment is marked.'),
+    h('h2', { id: 'marksTitle' }, t('marksTitle')),
+    h('p', { class: 'marks-sub' }, t('marksSub')),
     h('ul', { class: 'marks-grid' }, rows),
-    h('p', { class: 'marks-note' }, 'Your official grade is the one on the university system.'));
+    h('p', { class: 'marks-note' }, t('marksNote')));
 
-  const groups = KIND_ORDER.map(([kind, label]) => {
+  const groups = KIND_ORDER.map((kind) => {
+    const label = t('kinds')[kind][0];
     const list = items.filter((i) => i.kind === kind);
     if (!list.length) return null;
     return h('section', { class: 'group' },
@@ -206,15 +209,15 @@ function renderHome() {
 
 function itemCard(it) {
   const open = it.state === 'published';
-  const sub = [it.module ? `Module ${it.module}` : null, fmtDate(it.date)].filter(Boolean).join(' · ');
+  const sub = [it.module ? t('module', it.module) : null, fmtDate(it.date)].filter(Boolean).join(' · ');
   const side = h('span', { class: 'item-side' },
     chip(it.status),
-    it.status === 'graded' && h('span', { class: 'item-score' }, `${fmt(it.score)} / ${fmt(it.max)}`));
+    it.status === 'graded' && h('span', { class: 'item-score' }, h('bdi', { dir: 'ltr' }, `${fmt(it.score)} / ${fmt(it.max)}`)));
   return h('li', {}, h('button', {
     type: 'button', class: 'item-btn', disabled: !open,
     onclick: () => { history.pushState({ view: 'item', id: it.id }, ''); renderItem(it.id); },
   },
-  h('span', { class: 'item-title' }, it.title),
+  en('span', { class: 'item-title' }, it.title),
   sub && h('span', { class: 'item-sub' }, sub),
   side));
 }
@@ -223,50 +226,52 @@ function itemCard(it) {
 function renderItem(id) {
   const it = session.data.items.find((x) => x.id === id);
   if (!it) return;
-  const kindLabel = KIND_SINGULAR[it.kind] ?? '';
-  const meta = [kindLabel, it.module ? `Module ${it.module}` : null, fmtDate(it.date)].filter(Boolean).join(' · ');
+  current.id = id;
+  const kindLabel = t('kinds')[it.kind]?.[1] ?? '';
+  const meta = [kindLabel, it.module ? t('module', it.module) : null, fmtDate(it.date)].filter(Boolean).join(' · ');
 
   const parts = [
     h('button', { type: 'button', class: 'back', onclick: () => history.back() },
-      svg('M15 5l-7 7 7 7'), 'All my work'),
+      svg('M15 5l-7 7 7 7'), t('back')),
     h('div', { class: 'item-head' },
-      h('h1', {}, it.title),
+      en('h1', {}, it.title),
       h('div', { class: 'row' }, chip(it.status), h('span', {}, meta))),
   ];
 
   if (it.status === 'graded') {
     parts.push(h('div', { class: 'score-box' },
-      h('span', { class: 'big' }, `${fmt(it.score)} / ${fmt(it.max)}`),
-      it.scaled != null && h('span', {}, `= ${fmt(it.scaled)} of ${fmt(it.weight)} course marks`)));
+      h('bdi', { class: 'big', dir: 'ltr' }, `${fmt(it.score)} / ${fmt(it.max)}`),
+      it.scaled != null && h('span', {}, t('scaled', fmt(it.scaled), fmt(it.weight)))));
   }
 
   const intro = {
-    completed: it.graded ? null : 'You completed this activity. It is not graded — the feedback below is to help you learn.',
-    not_submitted: 'We have no sheet from you for this one. If you think this is a mistake, tell your instructor.',
-    excused: 'You are excused from this one. It does not count against you.',
+    completed: it.graded ? null : t('introCompleted'),
+    not_submitted: t('introMissing'),
+    excused: t('introExcused'),
   }[it.status];
 
   const fb = it.feedback;
   if (intro || fb) {
-    const panel = h('section', { class: 'card panel', 'aria-labelledby': 'fbTitle' }, h('h2', { id: 'fbTitle' }, fb ? 'Feedback' : 'Status'));
+    const panel = h('section', { class: 'card panel', 'aria-labelledby': 'fbTitle' }, h('h2', { id: 'fbTitle' }, fb ? t('feedback') : t('statusTitle')));
     if (intro) panel.append(h('p', { class: 'muted' }, intro));
-    if (fb?.summary) panel.append(h('p', {}, fb.summary));
+    if (fb && t('feedbackLang')) panel.append(h('p', { class: 'fb-lang' }, t('feedbackLang')));
+    if (fb?.summary) panel.append(en('p', { class: 'fb-en' }, fb.summary));
     if (fb?.points?.length) {
-      panel.append(h('ul', { class: 'points' }, fb.points.map((p) =>
+      panel.append(en('ul', { class: 'points' }, fb.points.map((p) =>
         h('li', {}, p.ref && h('span', { class: 'ref' }, p.ref), p.text))));
     }
-    if (fb) panel.append(h('p', { class: 'review-note' }, 'Reviewed by your instructor.'));
+    if (fb) panel.append(h('p', { class: 'review-note' }, t('reviewed')));
     parts.push(panel);
   }
 
   if (it.pages?.length) {
     const urls = it.pages.map(blobUrl);
     parts.push(h('section', { class: 'card panel', 'aria-labelledby': 'pgTitle' },
-      h('h2', { id: 'pgTitle' }, 'Your sheet'),
-      h('p', { class: 'muted' }, 'Tap a page to open it. Pinch or double-tap to zoom.'),
+      h('h2', { id: 'pgTitle' }, t('sheet')),
+      h('p', { class: 'muted' }, t('sheetHint')),
       h('div', { class: 'pages' }, urls.map((u, i) =>
-        h('button', { type: 'button', class: 'page-thumb', onclick: () => viewer.show(urls, i), 'aria-label': `Open page ${i + 1}` },
-          h('img', { src: u, alt: '', loading: 'lazy' }), h('span', {}, `Page ${i + 1}`))))));
+        h('button', { type: 'button', class: 'page-thumb', onclick: () => viewer.show(urls, i), 'aria-label': t('openPage', i + 1) },
+          h('img', { src: u, alt: '', loading: 'lazy' }), h('span', {}, t('page', i + 1)))))));
   }
 
   views.item.replaceChildren(...parts);

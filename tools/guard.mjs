@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { MAGIC, VERSION, HEADER_LEN, ITERATIONS } from '../src/crypto.js';
 
 export const ALLOWED_PAGE_FILES = new Set([
-  'index.html', 'styles.css', 'app.js', 'crypto.js', 'viewer.js',
+  'index.html', 'styles.css', 'app.js', 'crypto.js', 'viewer.js', 'i18n.js',
   'meta.json', '.nojekyll', 'robots.txt', 'favicon.svg', '404.html',
   'fonts/inter-latin-400-normal.woff2', 'fonts/inter-latin-600-normal.woff2',
   'fonts/inter-latin-700-normal.woff2', 'fonts/crimson-pro-latin-600-normal.woff2',
@@ -36,6 +36,14 @@ function entropy(bytes) {
   return h;
 }
 
+// Words the interface itself uses (e.g. «الأول» in "First semester") are not leaks.
+const UI_WORDS = (() => {
+  try {
+    const src = fs.readFileSync(new URL('../src/i18n.js', import.meta.url), 'utf8');
+    return new Set(src.match(/[\u0600-\u06FF]+/g) ?? []);
+  } catch { return new Set(); }
+})();
+
 // students: [{id, name}] — every ID and name must be absent from the output.
 export function guard(dist, students = [], { minIterations = ITERATIONS } = {}) {
   const problems = [];
@@ -48,7 +56,7 @@ export function guard(dist, students = [], { minIterations = ITERATIONS } = {}) 
     if (s.name) {
       needles.push(Buffer.from(s.name, 'utf8'));
       // also each name part of 4+ letters, to catch partial leaks of the family name
-      for (const part of s.name.split(/\s+/)) if (part.length >= 5) needles.push(Buffer.from(part, 'utf8'));
+      for (const part of s.name.split(/\s+/)) if (part.length >= 5 && !UI_WORDS.has(part)) needles.push(Buffer.from(part, 'utf8'));
     }
   }
 
