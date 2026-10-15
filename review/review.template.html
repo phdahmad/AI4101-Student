@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>مراجعة التصحيح · AI4101</title>
+<style>
+:root {
+  --bg: #FAF7F2; --surface: #FFFFFF; --surface-2: #F3EEE6; --ink: #1E1830; --muted: #5B556B; --line: #E2D9CB;
+  --primary: #3D2A6B; --on-primary: #FFFFFF; --accent: #D4A574; --accent-ink: #7A4E1A;
+  --ok-bg: #E3F1E7; --ok-ink: #1D5632; --miss-bg: #F8E3DF; --miss-ink: #8A2B1F;
+  --flag-bg: #FBF0DF; --flag-line: #E6C595; --edit-bg: #ECE6F7; --edit-ink: #3D2A6B;
+  --focus: #B07A3A; --radius: 12px; --shadow: 0 1px 2px rgba(30,24,48,.06), 0 4px 16px rgba(30,24,48,.06);
+  --arabic: "Segoe UI", Tahoma, "Noto Naskh Arabic", Arial, sans-serif;
+  --latin: "Segoe UI", system-ui, Roboto, Arial, sans-serif;
+  --mono: Consolas, ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14111C; --surface: #1E1A29; --surface-2: #272235; --ink: #F2EEE7; --muted: #B7B0C6; --line: #3A3349;
+    --primary: #C2B2F0; --on-primary: #17121F; --accent-ink: #E3BD8F;
+    --ok-bg: #1C3527; --ok-ink: #A3DBB6; --miss-bg: #43211C; --miss-ink: #F4B5AA;
+    --flag-bg: #3A2E1C; --flag-line: #7A5A2C; --edit-bg: #2D2546; --edit-ink: #D2C5F6;
+    --focus: #E3BD8F; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.25);
+    color-scheme: dark;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.6 var(--arabic); display: flex; flex-direction: column; }
+button, input, textarea, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.en { direction: ltr; text-align: left; font-family: var(--latin); unicode-bidi: isolate; }
+.mono { font-family: var(--mono); direction: ltr; unicode-bidi: isolate; }
+
+/* top bar */
+.top { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #3D2A6B; color: #fff; flex-wrap: wrap; }
+.top h1 { font-size: 17px; margin: 0; font-weight: 700; }
+.top .sub { opacity: .8; font-size: 13px; }
+.top .grow { flex: 1; }
+.progress { font-size: 13px; background: rgba(255,255,255,.12); padding: 4px 10px; border-radius: 999px; }
+.status { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.12); }
+.status.dirty { background: #D4A574; color: #2A1B05; font-weight: 600; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 7px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--primary); }
+.btn.primary { background: #D4A574; color: #2A1B05; border-color: #D4A574; font-weight: 700; }
+.top .btn { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.25); }
+.top .btn.primary { background: #D4A574; color: #2A1B05; border-color: #D4A574; }
+
+/* layout */
+.layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 300px minmax(420px, 1fr) minmax(380px, 46%); }
+@media (max-width: 1100px) { .layout { grid-template-columns: 260px 1fr; grid-template-rows: minmax(0, 1fr) 48vh; } .list { grid-row: 1 / span 2; } .scan { grid-column: 2; border-top: 1px solid var(--line); } }
+@media (max-width: 720px) { .layout { display: block; } .list { max-height: 40vh; } }
+
+/* list */
+.list { border-inline-end: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; min-height: 0; }
+.list-tools { padding: 10px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.list-tools input { width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 2px 10px; font-size: 13px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: #3D2A6B; color: #fff; border-color: #3D2A6B; }
+.students { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+.students li button { width: 100%; text-align: start; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--line); background: none; cursor: pointer; }
+.students li button:hover { background: var(--surface-2); }
+.students li button[aria-current="true"] { background: var(--edit-bg); box-shadow: inset -4px 0 0 #3D2A6B; }
+.s-name { font-weight: 600; font-size: 14px; }
+.s-meta { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.s-score { font-weight: 700; font-size: 14px; align-self: center; grid-row: 1 / span 2; grid-column: 2; }
+.tag { font-size: 11px; padding: 0 7px; border-radius: 999px; background: var(--surface-2); }
+.tag.flag { background: var(--flag-bg); color: var(--accent-ink); border: 1px solid var(--flag-line); }
+.tag.done { background: var(--ok-bg); color: var(--ok-ink); }
+.tag.edit { background: var(--edit-bg); color: var(--edit-ink); }
+
+/* main */
+.main { overflow-y: auto; padding: 16px; min-height: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 14px; }
+.card h2 { font-size: 16px; margin: 0 0 10px; }
+.head { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.head .who { flex: 1; min-width: 200px; }
+.head .who h2 { font-size: 20px; margin: 0; }
+.head .who p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.big { font-size: 28px; font-weight: 800; direction: ltr; unicode-bidi: isolate; }
+.scaled { font-size: 13px; color: var(--muted); }
+.navbtns { display: flex; gap: 6px; }
+.reviewed { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; user-select: none; }
+.reviewed input { width: 18px; height: 18px; accent-color: #1D5632; }
+.flags { background: var(--flag-bg); border-color: var(--flag-line); }
+.flags ul { margin: 0; padding-inline-start: 20px; }
+.flags li { margin-bottom: 6px; }
+.flags textarea { margin-top: 6px; }
+.second { font-size: 13px; color: var(--muted); margin-top: 6px; }
+table.obj { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.obj th, table.obj td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: center; }
+table.obj th { font-size: 12px; color: var(--muted); font-weight: 600; }
+table.obj td.topic { text-align: start; }
+table.obj tr.flagged td { background: var(--flag-bg); }
+.letter { display: inline-block; min-width: 28px; padding: 1px 6px; border-radius: 6px; font-weight: 700; font-family: var(--mono); }
+.letter.ok { background: var(--ok-bg); color: var(--ok-ink); }
+.letter.no { background: var(--miss-bg); color: var(--miss-ink); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; direction: ltr; }
+.seg button { border: 0; background: var(--surface); padding: 2px 12px; cursor: pointer; font-weight: 700; }
+.seg button[aria-pressed="true"] { background: #3D2A6B; color: #fff; }
+.changed { font-size: 11px; color: var(--edit-ink); background: var(--edit-bg); border-radius: 999px; padding: 0 6px; margin-inline-start: 4px; }
+.answer { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; font-size: 14px; margin-bottom: 10px; }
+.parts { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin-bottom: 8px; }
+.part label { display: block; font-size: 12px; color: var(--muted); }
+.part input { width: 74px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); text-align: center; direction: ltr; }
+.part input.edited { border-color: #3D2A6B; background: var(--edit-bg); }
+.part .of { font-size: 12px; color: var(--muted); direction: ltr; unicode-bidi: isolate; }
+.qtotal { font-weight: 700; margin-inline-start: auto; direction: ltr; unicode-bidi: isolate; }
+.rubric { font-size: 12.5px; color: var(--muted); margin: 0 0 8px; }
+.lbl { display: block; font-size: 12px; color: var(--muted); margin: 6px 0 3px; }
+textarea { width: 100%; min-height: 64px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); resize: vertical; }
+.preview { border-inline-start: 4px solid #D4A574; }
+.preview .sum { margin: 0 0 10px; }
+.preview ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.preview li { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.preview .ref { font-weight: 700; font-size: 13px; display: block; margin-bottom: 2px; }
+.empty { color: var(--muted); padding: 40px; text-align: center; }
+
+/* scan panel (always LTR inside) */
+.scan { border-inline-start: 1px solid var(--line); background: var(--surface-2); display: flex; flex-direction: column; min-height: 0; }
+.scan-bar { display: flex; gap: 6px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--surface); flex-wrap: wrap; }
+.scan-bar .grow { flex: 1; }
+.scan-bar .btn { padding: 3px 10px; }
+.scan-bar .btn[aria-pressed="true"] { background: #3D2A6B; color: #fff; border-color: #3D2A6B; }
+.scan-stage { flex: 1; overflow: auto; min-height: 0; direction: ltr; padding: 8px; }
+.scan-stage img { display: block; margin: 0 auto; background: #fff; box-shadow: var(--shadow); max-width: none; }
+.toast { position: fixed; inset-inline-start: 50%; bottom: 20px; transform: translateX(50%); background: #1E1830; color: #fff; padding: 10px 16px; border-radius: 10px; box-shadow: var(--shadow); z-index: 10; }
+[dir="rtl"] .toast { transform: translateX(50%); }
+.stale { font-size: 12px; color: var(--accent-ink); margin: 4px 0 0; }
+.kbd { font-family: var(--mono); font-size: 12px; border: 1px solid rgba(255,255,255,.35); border-radius: 4px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1 id="title">مراجعة التصحيح</h1>
+    <div class="sub">صفحة داخلية للمدرّس فقط · لا تُنشر</div>
+  </div>
+  <span class="grow"></span>
+  <span class="progress" id="progress"></span>
+  <span class="status" id="status">لا تعديلات</span>
+  <button class="btn" id="loadBtn" type="button" title="افتح ملف مراجعة محفوظ سابقاً">فتح ملف محفوظ</button>
+  <button class="btn primary" id="saveBtn" type="button">حفظ <span class="kbd">Ctrl+S</span></button>
+  <input type="file" id="loadInput" accept=".json,application/json" hidden>
+</header>
+
+<div class="layout">
+  <nav class="list" aria-label="قائمة الطلبة">
+    <div class="list-tools">
+      <input id="search" type="search" placeholder="ابحث بالاسم أو الرقم الجامعي" aria-label="بحث">
+      <div class="chips" role="group" aria-label="تصفية">
+        <button class="chip" data-filter="all" aria-pressed="true" type="button">الكل</button>
+        <button class="chip" data-filter="flag" aria-pressed="false" type="button">تحتاج قراراً</button>
+        <button class="chip" data-filter="todo" aria-pressed="false" type="button">لم تُراجَع</button>
+        <button class="chip" data-filter="edited" aria-pressed="false" type="button">عدّلتُها</button>
+      </div>
+      <select id="sort" aria-label="الترتيب">
+        <option value="name">ترتيب بالاسم</option>
+        <option value="score">ترتيب بالدرجة</option>
+        <option value="version">ترتيب بالنسخة</option>
+      </select>
+    </div>
+    <ul class="students" id="students"></ul>
+  </nav>
+
+  <main class="main" id="main"><p class="empty">اختر طالباً من القائمة.</p></main>
+
+  <aside class="scan" aria-label="الورقة الممسوحة">
+    <div class="scan-bar">
+      <button class="btn" data-page="1" type="button" aria-pressed="true">صفحة 1</button>
+      <button class="btn" data-page="2" type="button" aria-pressed="false">صفحة 2</button>
+      <button class="btn" data-page="3" type="button" aria-pressed="false">صفحة 3</button>
+      <span class="grow"></span>
+      <button class="btn" id="zoomOut" type="button" aria-label="تصغير">−</button>
+      <button class="btn" id="zoomFit" type="button">ملء العرض</button>
+      <button class="btn" id="zoomIn" type="button" aria-label="تكبير">+</button>
+    </div>
+    <div class="scan-stage" id="stage"><img id="scanImg" alt=""></div>
+  </aside>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script id="data" type="application/json">/*__DATA__*/</script>
+<script>
+'use strict';
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const A = DATA.assessment;
+const KEY = `ai4101-review-${A.id}`;
+const $ = (s) => document.querySelector(s);
+const h = (tag, attrs = {}, ...kids) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'class') el.className = v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const k of kids.flat()) if (k != null && k !== false) el.append(k.nodeType ? k : String(k));
+  return el;
+};
+const fmt = (n) => (Math.round(n * 100) / 100).toString();
+const en = (tag, attrs, ...kids) => h(tag, { ...attrs, class: ((attrs && attrs.class) || '') + ' en', dir: 'ltr', lang: 'en' }, ...kids);
+
+// ---------- state: draft defaults, then the saved review on top ----------
+const byId = new Map(DATA.students.map((s) => [s.id, s]));
+function defaults(s) {
+  const keys = A.versions[s.v].objective.map((o) => o.key);
+  return {
+    obj: [...s.ans].map((a, i) => (a === keys[i] ? 1 : 0)),
+    q11: [...s.q11], q12: [...s.q12], n11: s.n11, n12: s.n12,
+    summaryExtra: '', decision: '', reviewed: false,
+  };
+}
+const state = {};
+for (const s of DATA.students) state[s.id] = defaults(s);
+function merge(saved) {
+  if (!saved || saved.batch !== A.id || !saved.students) return 0;
+  let n = 0;
+  for (const [id, rec] of Object.entries(saved.students)) if (state[id]) { Object.assign(state[id], rec); n++; }
+  return n;
+}
+merge(DATA.saved);
+let savedAt = DATA.saved?.savedAt || null;
+// a newer unsaved copy in this browser wins only if the teacher agrees
+try {
+  const local = JSON.parse(localStorage.getItem(KEY) || 'null');
+  if (local && (!savedAt || local.savedAt > savedAt) && local.dirty) {
+    if (confirm('توجد تعديلات لم تُحفظ في ملف من جلسة سابقة على هذا المتصفح. هل أستعيدها؟')) { merge(local); setDirty(true, false); }
+  }
+} catch { /* storage blocked */ }
+
+// ---------- scoring ----------
+const sum = (a) => a.reduce((x, y) => x + (+y || 0), 0);
+function total(id) { const r = state[id]; return sum(r.obj) + sum(r.q11) + sum(r.q12); }
+function isEdited(id) {
+  const d = defaults(byId.get(id)), r = state[id];
+  return ['obj', 'q11', 'q12'].some((k) => r[k].some((v, i) => +v !== +d[k][i])) || r.n11 !== d.n11 || r.n12 !== d.n12 || !!r.summaryExtra;
+}
+
+// ---------- feedback the student will see (same shape as the student page) ----------
+function feedback(id) {
+  const s = byId.get(id), r = state[id], V = A.versions[s.v];
+  const t = total(id), objOk = r.obj.every((x) => x === 1);
+  let summary = `You scored ${fmt(t)} out of ${A.max}.` + (objOk ? ' All your multiple-choice and true/false answers are correct.' : ' The questions you missed are explained below.');
+  if (r.summaryExtra.trim()) summary += ' ' + r.summaryExtra.trim();
+  const points = [];
+  V.objective.forEach((o, i) => {
+    if (r.obj[i] === 1) return;
+    const a = s.ans[i], word = (x) => (x === 'T' ? 'TRUE' : x === 'F' ? 'FALSE' : x);
+    const chose = a === '-' ? 'You left this blank.' : a === 'X' ? 'You marked two answers, which scores 0.' : `You chose ${word(a)}.`;
+    points.push({ ref: `Q${o.q} · ${o.topic}`, text: `${chose} The answer is ${word(o.key)}. ${o.why}` });
+  });
+  V.short.forEach((q, j) => {
+    const parts = j === 0 ? r.q11 : r.q12, note = j === 0 ? r.n11 : r.n12;
+    const max = sum(q.parts.map((p) => p.max));
+    points.push({ ref: `Q${q.q} · ${q.topic} · ${fmt(sum(parts))}/${max}`, text: note });
+  });
+  return { summary, points };
+}
+
+// ---------- list ----------
+let current = null, filter = 'all', query = '', sortBy = 'name';
+function renderList() {
+  const ul = $('#students'); ul.replaceChildren();
+  let rows = DATA.students.filter((s) => {
+    if (query && !(s.name.includes(query) || s.id.includes(query))) return false;
+    if (filter === 'flag') return s.flags.length > 0;
+    if (filter === 'todo') return !state[s.id].reviewed;
+    if (filter === 'edited') return isEdited(s.id);
+    return true;
+  });
+  const cmp = { name: (a, b) => a.name.localeCompare(b.name, 'ar'), score: (a, b) => total(a.id) - total(b.id), version: (a, b) => (a.v + a.name).localeCompare(b.v + b.name, 'ar') }[sortBy];
+  rows.sort(cmp);
+  for (const s of rows) {
+    const r = state[s.id];
+    ul.append(h('li', {}, h('button', { type: 'button', 'aria-current': s.id === current ? 'true' : 'false', onclick: () => open(s.id) },
+      h('span', { class: 's-name' }, s.name),
+      h('span', { class: 's-score', dir: 'ltr' }, fmt(total(s.id))),
+      h('span', { class: 's-meta' }, h('span', { class: 'mono' }, s.id), h('span', { class: 'tag' }, s.v),
+        s.flags.length && !r.reviewed ? h('span', { class: 'tag flag' }, 'قرار') : null,
+        isEdited(s.id) ? h('span', { class: 'tag edit' }, 'معدَّل') : null,
+        r.reviewed ? h('span', { class: 'tag done' }, '✓ رُوجع') : null))));
+  }
+  const done = DATA.students.filter((s) => state[s.id].reviewed).length;
+  $('#progress').textContent = `رُوجع ${done} من ${DATA.students.length}`;
+}
+
+// ---------- student view ----------
+function open(id) {
+  current = id; page = 2; zoom = 'fit';
+  renderMain(); renderList(); showPage();
+  history.replaceState(null, '', '#' + id);
+}
+function change(fn) { fn(); setDirty(true); renderList(); renderTotals(); renderPreview(); }
+function renderTotals() {
+  const t = total(current);
+  $('#tot').textContent = `${fmt(t)} / ${A.max}`;
+  $('#scaled').textContent = `= ${fmt(Math.round(t / A.max * A.weight * 100) / 100)} من ${A.weight} من درجة المقرر`;
+  document.querySelectorAll('[data-qtotal]').forEach((el) => {
+    const j = +el.dataset.qtotal, parts = j === 0 ? state[current].q11 : state[current].q12;
+    el.textContent = `${fmt(sum(parts))} / ${sum(A.versions[byId.get(current).v].short[j].parts.map((p) => p.max))}`;
+  });
+}
+function renderPreview() {
+  const box = $('#preview'); if (!box) return;
+  const fb = feedback(current);
+  box.replaceChildren(h('h2', {}, 'ما سيراه الطالب في صفحته (تغذية راجعة)'),
+    en('p', { class: 'sum' }, fb.summary),
+    en('ul', {}, fb.points.map((p) => h('li', {}, h('span', { class: 'ref' }, p.ref), p.text))));
+}
+function renderMain() {
+  const s = byId.get(current), r = state[current], V = A.versions[s.v], d = defaults(s);
+  const main = $('#main'); main.replaceChildren();
+  const idx = DATA.students.findIndex((x) => x.id === current);
+  const go = (k) => { const n = DATA.students[(idx + k + DATA.students.length) % DATA.students.length]; open(n.id); };
+
+  main.append(h('section', { class: 'card head' },
+    h('div', { class: 'who' }, h('h2', {}, s.name),
+      h('p', {}, h('span', { class: 'mono' }, s.id), ` · النسخة ${s.v} · شعبة المعمل ${s.lab}`)),
+    h('div', {}, h('div', { class: 'big', id: 'tot' }), h('div', { class: 'scaled', id: 'scaled' })),
+    h('label', { class: 'reviewed' }, h('input', { type: 'checkbox', checked: r.reviewed, onchange: (e) => change(() => { r.reviewed = e.target.checked; }) }), 'تمت مراجعته'),
+    h('div', { class: 'navbtns' },
+      h('button', { class: 'btn', type: 'button', onclick: () => go(-1), title: 'Alt + سهم أعلى' }, 'السابق'),
+      h('button', { class: 'btn', type: 'button', onclick: () => go(1), title: 'Alt + سهم أسفل' }, 'التالي'))));
+
+  if (s.flags.length) {
+    main.append(h('section', { class: 'card flags' }, h('h2', {}, 'حالات تحتاج قرارك'),
+      en('ul', {}, s.flags.map((f) => h('li', {}, f))),
+      s.second ? h('p', { class: 'second' }, 'ملاحظة القارئ الثاني: ', en('span', {}, s.second)) : null,
+      h('label', { class: 'lbl', for: 'decision' }, 'قرارك أو ملاحظتك (لا تظهر للطالب)'),
+      h('textarea', { id: 'decision', oninput: (e) => change(() => { r.decision = e.target.value; }) }, r.decision)));
+  }
+
+  // objective questions
+  const rows = V.objective.map((o, i) => {
+    const a = s.ans[i], right = a === o.key;
+    const flagged = s.flags.some((f) => new RegExp(`\\bQ${o.q}\\b`).test(f));
+    const seg = h('span', { class: 'seg' }, [0, 1].map((v) => h('button', { type: 'button', 'aria-pressed': r.obj[i] === v ? 'true' : 'false',
+      'aria-label': `السؤال ${o.q}: ${v}`, onclick: () => change(() => { r.obj[i] = v; renderMain(); }) }, String(v))));
+    return h('tr', { class: flagged ? 'flagged' : null, onclick: () => setPage(o.q <= 7 ? 2 : 3) },
+      h('td', {}, h('b', {}, o.q)),
+      en('td', { class: 'topic' }, o.topic),
+      h('td', {}, h('span', { class: 'letter ' + (right ? 'ok' : 'no'), title: a === 'X' ? 'خياران معلَّمان' : a === '-' ? 'لا شيء معلَّم' : null }, a === '-' ? '—' : a)),
+      h('td', {}, h('span', { class: 'letter' }, o.key)),
+      h('td', {}, seg, r.obj[i] !== d.obj[i] ? h('span', { class: 'changed' }, 'معدَّل') : null));
+  });
+  main.append(h('section', { class: 'card' }, h('h2', {}, 'الاختيار من متعدد والصح والخطأ'),
+    h('table', { class: 'obj' }, h('thead', {}, h('tr', {}, ['#', 'الموضوع', 'إجابة الطالب', 'المفتاح', 'الدرجة'].map((x) => h('th', {}, x)))), h('tbody', {}, rows)),
+    h('p', { class: 'rubric' }, 'X تعني خيارين معلَّمين، و— لا شيء معلَّم. التظليل الأصفر: سؤال فيه حالة ملتبسة.')));
+
+  // short answers
+  V.short.forEach((q, j) => {
+    const key = j === 0 ? 'q11' : 'q12', nkey = j === 0 ? 'n11' : 'n12', text = j === 0 ? s.t11 : s.t12;
+    const parts = q.parts.map((p, k) => {
+      const inp = h('input', { type: 'number', min: 0, max: p.max, step: 0.5, value: r[key][k], class: +r[key][k] !== +d[key][k] ? 'edited' : null,
+        'aria-label': `${q.q} ${p.label}`,
+        oninput: (e) => {
+          let v = parseFloat(e.target.value); if (Number.isNaN(v)) return;
+          v = Math.max(0, Math.min(p.max, Math.round(v * 2) / 2));
+          change(() => { r[key][k] = v; });
+          e.target.classList.toggle('edited', +v !== +d[key][k]);
+          stale.hidden = r[nkey] !== d[nkey] || r[key].every((x, i) => +x === +d[key][i]);
+        } });
+      return h('div', { class: 'part' }, en('label', {}, p.label), inp, h('span', { class: 'of' }, ` / ${p.max}`));
+    });
+    const stale = h('p', { class: 'stale', hidden: r[nkey] !== d[nkey] || r[key].every((v, k) => +v === +d[key][k]) }, 'غيّرتَ الدرجة: حدّث سبب الدرجة إن كان يذكر الدرجة القديمة.');
+    main.append(h('section', { class: 'card', onfocusin: () => setPage(3), onclick: () => setPage(3) },
+      h('h2', {}, `السؤال ${q.q} · `, en('span', {}, q.topic)),
+      h('span', { class: 'lbl' }, 'إجابة الطالب كما نقلتُها من الورقة'),
+      en('div', { class: 'answer' }, text.split(' | ').join('\n')),
+      h('div', { class: 'parts' }, parts, h('span', { class: 'qtotal', 'data-qtotal': j })),
+      en('p', { class: 'rubric' }, q.rubric),
+      h('label', { class: 'lbl', for: `n${j}` }, 'سبب الدرجة — يظهر للطالب تغذيةً راجعة (بالإنجليزية)'),
+      en('textarea', { id: `n${j}`, oninput: (e) => { change(() => { r[nkey] = e.target.value; }); stale.hidden = true; } }, r[nkey]),
+      stale));
+  });
+
+  main.append(h('section', { class: 'card' },
+    h('label', { class: 'lbl', for: 'extra' }, 'جملة إضافية في ملخص التغذية الراجعة (اختياري، بالإنجليزية)'),
+    en('textarea', { id: 'extra', oninput: (e) => change(() => { r.summaryExtra = e.target.value; }) }, r.summaryExtra)));
+  main.append(h('section', { class: 'card preview', id: 'preview' }));
+  renderTotals(); renderPreview();
+  main.scrollTop = 0;
+}
+
+// ---------- scan panel ----------
+let page = 1, zoom = 'fit';
+const img = $('#scanImg'), stage = $('#stage');
+function showPage() {
+  if (!current) return;
+  img.src = `${DATA.images}${current}_p${page}.webp`;
+  img.alt = `الصفحة ${page}`;
+  document.querySelectorAll('[data-page]').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.page === page)));
+  applyZoom();
+}
+function setPage(n) { if (n !== page) { page = n; showPage(); stage.scrollTop = 0; } }
+function applyZoom() {
+  const fit = stage.clientWidth - 16;
+  img.style.width = zoom === 'fit' ? `${fit}px` : `${Math.round(fit * zoom)}px`;
+}
+document.querySelectorAll('[data-page]').forEach((b) => b.addEventListener('click', () => { page = +b.dataset.page; showPage(); stage.scrollTop = 0; }));
+$('#zoomIn').addEventListener('click', () => { zoom = (zoom === 'fit' ? 1 : zoom) * 1.4; applyZoom(); });
+$('#zoomOut').addEventListener('click', () => { zoom = Math.max(1, (zoom === 'fit' ? 1 : zoom) / 1.4); applyZoom(); });
+$('#zoomFit').addEventListener('click', () => { zoom = 'fit'; applyZoom(); });
+window.addEventListener('resize', applyZoom);
+stage.addEventListener('dblclick', () => { zoom = zoom === 'fit' ? 2 : 'fit'; applyZoom(); });
+
+// ---------- saving ----------
+let dirty = false;
+function snapshot(markDirty) {
+  return { batch: A.id, savedAt: new Date().toISOString(), dirty: !!markDirty, students: state };
+}
+function setDirty(v, persist = true) {
+  dirty = v;
+  const st = $('#status');
+  st.textContent = v ? 'تعديلات غير محفوظة' : (savedAt ? `محفوظ ${new Date(savedAt).toLocaleTimeString('ar-SA-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}` : 'لا تعديلات');
+  st.classList.toggle('dirty', v);
+  if (persist) try { localStorage.setItem(KEY, JSON.stringify(snapshot(v))); } catch { /* storage blocked */ }
+}
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 3500); }
+
+const IDB = { open: () => new Promise((res, rej) => { const q = indexedDB.open('ai4101-review', 1); q.onupgradeneeded = () => q.result.createObjectStore('h'); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }),
+  async get(k) { const db = await this.open(); return new Promise((res) => { const q = db.transaction('h').objectStore('h').get(k); q.onsuccess = () => res(q.result); q.onerror = () => res(null); }); },
+  async set(k, v) { const db = await this.open(); return new Promise((res) => { const tx = db.transaction('h', 'readwrite'); tx.objectStore('h').put(v, k); tx.oncomplete = res; tx.onerror = res; }); } };
+let fileHandle = null;
+async function save() {
+  const out = snapshot(false); out.dirty = undefined;
+  const text = JSON.stringify(out, null, 2);
+  const name = `${A.id}.review.json`;
+  try {
+    if ('showSaveFilePicker' in window) {
+      if (!fileHandle) fileHandle = await IDB.get(KEY).catch(() => null);
+      if (fileHandle && (await fileHandle.queryPermission({ mode: 'readwrite' })) !== 'granted'
+          && (await fileHandle.requestPermission({ mode: 'readwrite' })) !== 'granted') fileHandle = null;
+      if (!fileHandle) {
+        fileHandle = await showSaveFilePicker({ suggestedName: name, types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }] });
+        await IDB.set(KEY, fileHandle).catch(() => {});
+      }
+      const w = await fileHandle.createWritable(); await w.write(text); await w.close();
+      savedAt = out.savedAt; setDirty(false); toast(`حُفظ في ${fileHandle.name}`);
+      return;
+    }
+  } catch (e) { if (e.name === 'AbortError') return; console.warn(e); }
+  // fallback: download the file; the teacher puts it in the batch folder
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: name });
+  document.body.append(a); a.click(); a.remove();
+  savedAt = out.savedAt; setDirty(false); toast(`نُزّل ${name}. ضعه في مجلد الدفعة.`);
+}
+$('#saveBtn').addEventListener('click', save);
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
+  if (e.altKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp') && current) {
+    e.preventDefault(); const i = DATA.students.findIndex((x) => x.id === current);
+    open(DATA.students[(i + (e.key === 'ArrowDown' ? 1 : -1) + DATA.students.length) % DATA.students.length].id);
+  }
+});
+window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+$('#loadBtn').addEventListener('click', () => $('#loadInput').click());
+$('#loadInput').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const n = merge(JSON.parse(await f.text())); setDirty(false); savedAt = new Date().toISOString(); renderList(); if (current) renderMain(); toast(`حُمّلت مراجعة ${n} طالباً من ${f.name}`); }
+  catch { toast('الملف غير صالح.'); }
+  e.target.value = '';
+});
+
+// ---------- filters ----------
+$('#search').addEventListener('input', (e) => { query = e.target.value.trim(); renderList(); });
+document.querySelectorAll('[data-filter]').forEach((b) => b.addEventListener('click', () => {
+  filter = b.dataset.filter; document.querySelectorAll('[data-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); renderList();
+}));
+$('#sort').addEventListener('change', (e) => { sortBy = e.target.value; renderList(); });
+
+// ---------- start ----------
+$('#title').textContent = `مراجعة التصحيح · ${A.titleAr}`;
+document.title = `مراجعة ${A.titleAr} · AI4101`;
+setDirty(dirty, false);
+renderList();
+const start = location.hash.slice(1);
+if (byId.has(start)) open(start); else if (DATA.students.length) open([...DATA.students].sort((a, b) => a.name.localeCompare(b.name, 'ar'))[0].id);
+</script>
+</body>
+</html>
