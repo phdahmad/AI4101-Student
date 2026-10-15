@@ -142,6 +142,7 @@ textarea.note { min-height: 44px; background: var(--surface-2); }
 .ar-fb { margin: 6px 0 0; padding-top: 6px; border-top: 1px dashed var(--line); text-align: right; font-family: var(--arabic); }
 .writing-prev { margin-top: 12px; direction: rtl; text-align: right; font-family: var(--arabic); background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
 .writing-prev h3 { font-size: 14px; margin: 0 0 4px; display: flex; gap: 8px; align-items: center; }
+textarea[dir="rtl"] { unicode-bidi: plaintext; }
 .kbd { font-family: var(--mono); font-size: 12px; border: 1px solid rgba(255,255,255,.35); border-radius: 4px; padding: 0 4px; }
 </style>
 </head>
@@ -214,6 +215,11 @@ const h = (tag, attrs = {}, ...kids) => {
   return el;
 };
 const LEVELS = { clear: 'واضحة وسليمة غالباً', understandable: 'مفهومة مع أخطاء متكررة', hard_to_follow: 'يصعب فهمها في مواضع', arabic: 'كتب أغلب إجاباته بالعربية', blank: 'لم يكتب إجابات' };
+// Arabic text with English words or quoted English: isolate each Latin run so the order stays right.
+function mixed(text) {
+  return String(text).split(/("[^"\u0600-\u06FF]*"|“[^”\u0600-\u06FF]*”|[A-Za-z][^\u0600-\u06FF"“”«»،؛]*[A-Za-z0-9.!?)'’])/)
+    .map((part, i) => (i % 2 ? h('bdi', { dir: 'ltr', lang: 'en' }, part) : part));
+}
 const fmt = (n) => (Math.round(n * 100) / 100).toString();
 const en = (tag, attrs, ...kids) => h(tag, { ...attrs, class: ((attrs && attrs.class) || '') + ' en', dir: 'ltr', lang: 'en' }, ...kids);
 
@@ -327,9 +333,9 @@ function renderPreview() {
   box.replaceChildren(h('h2', {}, 'ما سيراه الطالب في صفحته (تغذية راجعة)'),
     en('p', { class: 'sum' }, fb.summary),
     en('ul', {}, fb.points.map((p) => h('li', {}, h('span', { class: 'ref' }, p.ref), p.text,
-      p.textAr ? h('p', { class: 'ar-fb', dir: 'rtl', lang: 'ar' }, p.textAr) : null))),
+      p.textAr ? h('p', { class: 'ar-fb', dir: 'rtl', lang: 'ar' }, mixed(p.textAr)) : null))),
     fb.writing ? h('div', { class: 'writing-prev' }, h('h3', {}, 'نصيحة في الكتابة بالإنجليزية', fb.writing.level ? h('span', { class: 'tag' }, LEVELS[fb.writing.level] || fb.writing.level) : null),
-      h('p', {}, fb.writing.tipAr)) : null);
+      h('p', {}, mixed(fb.writing.tipAr))) : null);
 }
 function renderMain() {
   const s = byId.get(current), r = state[current], V = A.versions[s.v], d = defaults(s);
@@ -390,8 +396,8 @@ function renderMain() {
     const stale = h('p', { class: 'stale', hidden: (r[fk + 'en'] !== d[fk + 'en'] && r[fk + 'ar'] !== d[fk + 'ar']) || r[key].every((v, k) => +v === +d[key][k]) }, 'غيّرتَ الدرجة: حدّث التوضيح للطالب بالإنجليزية والعربية ليوافق الدرجة الجديدة.');
     const isAr = (t) => /[\u0600-\u06FF]/.test(t);
     const answer = verbatim
-      ? h('dl', { class: 'answer verbatim' }, verbatim.map((p) => [en('dt', {}, p.label),
-          p.text ? h('dd', { dir: isAr(p.text) ? 'rtl' : 'ltr', lang: isAr(p.text) ? 'ar' : 'en', class: isAr(p.text) ? 'ar-text' : 'en' }, p.text) : h('dd', { class: 'blank' }, '(فارغ)')]))
+      ? h('dl', { class: 'answer verbatim' }, verbatim.flatMap((p) => [en('dt', {}, p.label),
+          p.text ? h('dd', { dir: isAr(p.text) ? 'rtl' : 'ltr', lang: isAr(p.text) ? 'ar' : 'en', class: isAr(p.text) ? 'ar-text' : 'en' }, isAr(p.text) ? mixed(p.text) : p.text) : h('dd', { class: 'blank' }, '(فارغ)')]))
       : en('div', { class: 'answer' }, text.split(' | ').join('\n'));
     const ta = (k, lang, label) => [h('label', { class: 'lbl', for: `${k}${j}` }, label),
       h('textarea', { id: `${k}${j}`, dir: lang === 'ar' ? 'rtl' : 'ltr', lang, class: lang === 'en' ? 'en' : null,
