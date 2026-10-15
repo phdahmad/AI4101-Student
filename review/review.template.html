@@ -132,6 +132,16 @@ textarea { width: 100%; min-height: 64px; padding: 8px 10px; border: 1px solid v
 .toast { position: fixed; inset-inline-start: 50%; bottom: 20px; transform: translateX(50%); background: #1E1830; color: #fff; padding: 10px 16px; border-radius: 10px; box-shadow: var(--shadow); z-index: 10; }
 [dir="rtl"] .toast { transform: translateX(50%); }
 .stale { font-size: 12px; color: var(--accent-ink); margin: 4px 0 0; }
+.verbatim { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; white-space: normal; direction: ltr; }
+.verbatim dt { font-weight: 700; font-size: 12.5px; color: var(--muted); }
+.verbatim dd { margin: 0; white-space: pre-wrap; }
+.verbatim dd.ar-text { text-align: right; font-family: var(--arabic); }
+.verbatim dd.blank { color: var(--muted); font-style: italic; }
+textarea.note { min-height: 44px; background: var(--surface-2); }
+.writing select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.ar-fb { margin: 6px 0 0; padding-top: 6px; border-top: 1px dashed var(--line); text-align: right; font-family: var(--arabic); }
+.writing-prev { margin-top: 12px; direction: rtl; text-align: right; font-family: var(--arabic); background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+.writing-prev h3 { font-size: 14px; margin: 0 0 4px; display: flex; gap: 8px; align-items: center; }
 .kbd { font-family: var(--mono); font-size: 12px; border: 1px solid rgba(255,255,255,.35); border-radius: 4px; padding: 0 4px; }
 </style>
 </head>
@@ -203,6 +213,7 @@ const h = (tag, attrs = {}, ...kids) => {
   for (const k of kids.flat()) if (k != null && k !== false) el.append(k.nodeType ? k : String(k));
   return el;
 };
+const LEVELS = { clear: 'واضحة وسليمة غالباً', understandable: 'مفهومة مع أخطاء متكررة', hard_to_follow: 'يصعب فهمها في مواضع', arabic: 'كتب أغلب إجاباته بالعربية', blank: 'لم يكتب إجابات' };
 const fmt = (n) => (Math.round(n * 100) / 100).toString();
 const en = (tag, attrs, ...kids) => h(tag, { ...attrs, class: ((attrs && attrs.class) || '') + ' en', dir: 'ltr', lang: 'en' }, ...kids);
 
@@ -213,6 +224,8 @@ function defaults(s) {
   return {
     obj: [...s.ans].map((a, i) => (a === keys[i] ? 1 : 0)),
     q11: [...s.q11], q12: [...s.q12], n11: s.n11, n12: s.n12,
+    f11en: s.fb11?.en ?? '', f11ar: s.fb11?.ar ?? '', f12en: s.fb12?.en ?? '', f12ar: s.fb12?.ar ?? '',
+    wLevel: s.writing?.level ?? '', wTip: s.writing?.tip_ar ?? '',
     summaryExtra: '', decision: '', reviewed: false,
   };
 }
@@ -239,7 +252,8 @@ const sum = (a) => a.reduce((x, y) => x + (+y || 0), 0);
 function total(id) { const r = state[id]; return sum(r.obj) + sum(r.q11) + sum(r.q12); }
 function isEdited(id) {
   const d = defaults(byId.get(id)), r = state[id];
-  return ['obj', 'q11', 'q12'].some((k) => r[k].some((v, i) => +v !== +d[k][i])) || r.n11 !== d.n11 || r.n12 !== d.n12 || !!r.summaryExtra;
+  return ['obj', 'q11', 'q12'].some((k) => r[k].some((v, i) => +v !== +d[k][i]))
+    || ['n11', 'n12', 'f11en', 'f11ar', 'f12en', 'f12ar', 'wLevel', 'wTip', 'summaryExtra'].some((k) => (r[k] ?? '') !== (d[k] ?? ''));
 }
 
 // ---------- feedback the student will see (same shape as the student page) ----------
@@ -256,11 +270,12 @@ function feedback(id) {
     points.push({ ref: `Q${o.q} · ${o.topic}`, text: `${chose} The answer is ${word(o.key)}. ${o.why}` });
   });
   V.short.forEach((q, j) => {
-    const parts = j === 0 ? r.q11 : r.q12, note = j === 0 ? r.n11 : r.n12;
+    const parts = j === 0 ? r.q11 : r.q12, f = j === 0 ? 'f11' : 'f12';
     const max = sum(q.parts.map((p) => p.max));
-    points.push({ ref: `Q${q.q} · ${q.topic} · ${fmt(sum(parts))}/${max}`, text: note });
+    points.push({ ref: `Q${q.q} · ${q.topic} · ${fmt(sum(parts))}/${max}`, text: r[f + 'en'] || (j === 0 ? r.n11 : r.n12), textAr: r[f + 'ar'] });
   });
-  return { summary, points };
+  const writing = r.wTip ? { level: r.wLevel, tipAr: r.wTip } : null;
+  return { summary, points, writing };
 }
 
 // ---------- list ----------
@@ -311,7 +326,10 @@ function renderPreview() {
   const fb = feedback(current);
   box.replaceChildren(h('h2', {}, 'ما سيراه الطالب في صفحته (تغذية راجعة)'),
     en('p', { class: 'sum' }, fb.summary),
-    en('ul', {}, fb.points.map((p) => h('li', {}, h('span', { class: 'ref' }, p.ref), p.text))));
+    en('ul', {}, fb.points.map((p) => h('li', {}, h('span', { class: 'ref' }, p.ref), p.text,
+      p.textAr ? h('p', { class: 'ar-fb', dir: 'rtl', lang: 'ar' }, p.textAr) : null))),
+    fb.writing ? h('div', { class: 'writing-prev' }, h('h3', {}, 'نصيحة في الكتابة بالإنجليزية', fb.writing.level ? h('span', { class: 'tag' }, LEVELS[fb.writing.level] || fb.writing.level) : null),
+      h('p', {}, fb.writing.tipAr)) : null);
 }
 function renderMain() {
   const s = byId.get(current), r = state[current], V = A.versions[s.v], d = defaults(s);
@@ -355,7 +373,8 @@ function renderMain() {
 
   // short answers
   V.short.forEach((q, j) => {
-    const key = j === 0 ? 'q11' : 'q12', nkey = j === 0 ? 'n11' : 'n12', text = j === 0 ? s.t11 : s.t12;
+    const key = j === 0 ? 'q11' : 'q12', nkey = j === 0 ? 'n11' : 'n12', fk = j === 0 ? 'f11' : 'f12';
+    const verbatim = (j === 0 ? s.parts11 : s.parts12) || null, text = j === 0 ? s.t11 : s.t12;
     const parts = q.parts.map((p, k) => {
       const inp = h('input', { type: 'number', min: 0, max: p.max, step: 0.5, value: r[key][k], class: +r[key][k] !== +d[key][k] ? 'edited' : null,
         'aria-label': `${q.q} ${p.label}`,
@@ -364,22 +383,38 @@ function renderMain() {
           v = Math.max(0, Math.min(p.max, Math.round(v * 2) / 2));
           change(() => { r[key][k] = v; });
           e.target.classList.toggle('edited', +v !== +d[key][k]);
-          stale.hidden = r[nkey] !== d[nkey] || r[key].every((x, i) => +x === +d[key][i]);
+          stale.hidden = (r[fk + 'en'] !== d[fk + 'en'] && r[fk + 'ar'] !== d[fk + 'ar']) || r[key].every((x, i) => +x === +d[key][i]);
         } });
       return h('div', { class: 'part' }, en('label', {}, p.label), inp, h('span', { class: 'of' }, ` / ${p.max}`));
     });
-    const stale = h('p', { class: 'stale', hidden: r[nkey] !== d[nkey] || r[key].every((v, k) => +v === +d[key][k]) }, 'غيّرتَ الدرجة: حدّث سبب الدرجة إن كان يذكر الدرجة القديمة.');
+    const stale = h('p', { class: 'stale', hidden: (r[fk + 'en'] !== d[fk + 'en'] && r[fk + 'ar'] !== d[fk + 'ar']) || r[key].every((v, k) => +v === +d[key][k]) }, 'غيّرتَ الدرجة: حدّث التوضيح للطالب بالإنجليزية والعربية ليوافق الدرجة الجديدة.');
+    const isAr = (t) => /[\u0600-\u06FF]/.test(t);
+    const answer = verbatim
+      ? h('dl', { class: 'answer verbatim' }, verbatim.map((p) => [en('dt', {}, p.label),
+          p.text ? h('dd', { dir: isAr(p.text) ? 'rtl' : 'ltr', lang: isAr(p.text) ? 'ar' : 'en', class: isAr(p.text) ? 'ar-text' : 'en' }, p.text) : h('dd', { class: 'blank' }, '(فارغ)')]))
+      : en('div', { class: 'answer' }, text.split(' | ').join('\n'));
+    const ta = (k, lang, label) => [h('label', { class: 'lbl', for: `${k}${j}` }, label),
+      h('textarea', { id: `${k}${j}`, dir: lang === 'ar' ? 'rtl' : 'ltr', lang, class: lang === 'en' ? 'en' : null,
+        oninput: (e) => { change(() => { r[k] = e.target.value; }); stale.hidden = true; } }, r[k])];
     main.append(h('section', { class: 'card', onfocusin: () => setPage(3), onclick: () => setPage(3) },
       h('h2', {}, `السؤال ${q.q} · `, en('span', {}, q.topic)),
-      h('span', { class: 'lbl' }, 'إجابة الطالب كما نقلتُها من الورقة'),
-      en('div', { class: 'answer' }, text.split(' | ').join('\n')),
+      h('span', { class: 'lbl' }, 'إجابة الطالب كما كتبها حرفياً (بأخطائه)'),
+      answer,
       h('div', { class: 'parts' }, parts, h('span', { class: 'qtotal', 'data-qtotal': j })),
       en('p', { class: 'rubric' }, q.rubric),
-      h('label', { class: 'lbl', for: `n${j}` }, 'سبب الدرجة — يظهر للطالب تغذيةً راجعة (بالإنجليزية)'),
-      en('textarea', { id: `n${j}`, oninput: (e) => { change(() => { r[nkey] = e.target.value; }); stale.hidden = true; } }, r[nkey]),
+      h('label', { class: 'lbl', for: `n${j}` }, 'سبب الدرجة — ملاحظة لك، لا تظهر للطالب'),
+      en('textarea', { id: `n${j}`, class: 'note', oninput: (e) => change(() => { r[nkey] = e.target.value; }) }, r[nkey]),
+      ...ta(fk + 'en', 'en', 'توضيح للطالب بالإنجليزية — يظهر في صفحته'),
+      ...ta(fk + 'ar', 'ar', 'توضيح للطالب بالعربية — يظهر تحته'),
       stale));
   });
 
+  main.append(h('section', { class: 'card writing' }, h('h2', {}, 'نصيحة في الكتابة بالإنجليزية (لا تؤثر في الدرجة)'),
+    h('label', { class: 'lbl', for: 'wLevel' }, 'مستوى الكتابة'),
+    h('select', { id: 'wLevel', onchange: (e) => change(() => { r.wLevel = e.target.value; }) },
+      Object.entries({ '': '—', ...LEVELS }).map(([v, t]) => h('option', { value: v, selected: r.wLevel === v }, t))),
+    h('label', { class: 'lbl', for: 'wTip' }, 'النصيحة — تظهر للطالب في صفحته'),
+    h('textarea', { id: 'wTip', dir: 'rtl', lang: 'ar', oninput: (e) => change(() => { r.wTip = e.target.value; }) }, r.wTip)));
   main.append(h('section', { class: 'card' },
     h('label', { class: 'lbl', for: 'extra' }, 'جملة إضافية في ملخص التغذية الراجعة (اختياري، بالإنجليزية)'),
     en('textarea', { id: 'extra', oninput: (e) => change(() => { r.summaryExtra = e.target.value; }) }, r.summaryExtra)));

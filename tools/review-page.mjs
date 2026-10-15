@@ -35,7 +35,8 @@ const students = draft.map((d) => {
   if (d.q11.length !== v.short[0].parts.length || d.q12.length !== v.short[1].parts.length) fail(`${d.id}: short-answer parts do not match the version`);
   for (const f of ['web']) if (!fs.existsSync(path.join(dir, f, `${d.id}_p1.webp`))) fail(`${d.id}: no scan images in ${f}/`);
   return { id: d.id, name: who.name, lab: who.lab, v: d.v, ans, flags: d.flags ?? [], second: d.second ?? '',
-    t11: d.t11, t12: d.t12, q11: d.q11, q12: d.q12, n11: d.n11, n12: d.n12 };
+    t11: d.t11, t12: d.t12, q11: d.q11, q12: d.q12, n11: d.n11, n12: d.n12,
+    parts11: d.q11_parts ?? null, parts12: d.q12_parts ?? null, fb11: d.fb11 ?? null, fb12: d.fb12 ?? null, writing: d.writing ?? null };
 });
 
 const payload = { batch, generatedAt: new Date().toISOString(), assessment, students, saved, images: 'web/' };
