@@ -27,16 +27,28 @@ const saved = fs.existsSync(reviewPath) ? readJson(reviewPath) : null;
 
 const names = new Map(readCsv(path.join(DATA, 'roster.csv')).map((r) => [r.id, { name: r.name, lab: r.lab }]));
 
+// A draft record lists its essay questions in `short` (marks, note, parts, fb).
+// Older drafts (Quiz 1) used q11/q12 fields; they are read the same way.
+function shortOf(d) {
+  if (Array.isArray(d.short)) return d.short;
+  return [
+    { marks: d.q11, note: d.n11, text: d.t11, parts: d.q11_parts ?? null, fb: d.fb11 ?? null },
+    { marks: d.q12, note: d.n12, text: d.t12, parts: d.q12_parts ?? null, fb: d.fb12 ?? null },
+  ];
+}
+
 const students = draft.map((d) => {
   const who = names.get(d.id) ?? fail(`Student ${d.id} is in the draft but not in roster.csv`);
   const v = assessment.versions[d.v] ?? fail(`Unknown version ${d.v} for ${d.id}`);
-  const ans = d.mcq + d.tf;
-  if (ans.length !== v.objective.length) fail(`${d.id}: ${ans.length} objective answers, expected ${v.objective.length}`);
-  if (d.q11.length !== v.short[0].parts.length || d.q12.length !== v.short[1].parts.length) fail(`${d.id}: short-answer parts do not match the version`);
-  for (const f of ['web']) if (!fs.existsSync(path.join(dir, f, `${d.id}_p1.webp`))) fail(`${d.id}: no scan images in ${f}/`);
+  const objective = v.objective ?? [], shortQs = v.short ?? [];
+  const ans = (d.mcq ?? '') + (d.tf ?? '');
+  if (ans.length !== objective.length) fail(`${d.id}: ${ans.length} objective answers, expected ${objective.length}`);
+  const short = shortOf(d);
+  if (short.length !== shortQs.length) fail(`${d.id}: ${short.length} essay questions, expected ${shortQs.length}`);
+  short.forEach((q, j) => { if ((q.marks ?? []).length !== shortQs[j].parts.length) fail(`${d.id}: question ${j + 1} has ${(q.marks ?? []).length} part marks, expected ${shortQs[j].parts.length}`); });
+  if (!fs.existsSync(path.join(dir, 'web', `${d.id}_p1.webp`))) fail(`${d.id}: no scan images in web/`);
   return { id: d.id, name: who.name, lab: who.lab, v: d.v, ans, flags: d.flags ?? [], second: d.second ?? '',
-    t11: d.t11, t12: d.t12, q11: d.q11, q12: d.q12, n11: d.n11, n12: d.n12,
-    parts11: d.q11_parts ?? null, parts12: d.q12_parts ?? null, fb11: d.fb11 ?? null, fb12: d.fb12 ?? null, writing: d.writing ?? null };
+    short: short.map((q) => ({ ...q, marks: q.marks ?? [] })), writing: d.writing ?? null };
 });
 
 const payload = { batch, generatedAt: new Date().toISOString(), assessment, students, saved, images: 'web/' };

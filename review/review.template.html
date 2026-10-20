@@ -183,9 +183,7 @@ textarea[dir="rtl"] { unicode-bidi: plaintext; }
 
   <aside class="scan" aria-label="الورقة الممسوحة">
     <div class="scan-bar">
-      <button class="btn" data-page="1" type="button" aria-pressed="true">صفحة 1</button>
-      <button class="btn" data-page="2" type="button" aria-pressed="false">صفحة 2</button>
-      <button class="btn" data-page="3" type="button" aria-pressed="false">صفحة 3</button>
+      <span id="pageBtns"></span>
       <span class="grow"></span>
       <button class="btn" id="zoomOut" type="button" aria-label="تصغير">−</button>
       <button class="btn" id="zoomFit" type="button">ملء العرض</button>
@@ -225,22 +223,32 @@ const en = (tag, attrs, ...kids) => h(tag, { ...attrs, class: ((attrs && attrs.c
 
 // ---------- state: draft defaults, then the saved review on top ----------
 const byId = new Map(DATA.students.map((s) => [s.id, s]));
+const OBJ = (s) => A.versions[s.v].objective ?? [];
+const SHORT = (s) => A.versions[s.v].short ?? [];
+const PAGES = A.pages ?? 3;
+const WRITING = A.writingTip !== false;
 function defaults(s) {
-  const keys = A.versions[s.v].objective.map((o) => o.key);
+  const keys = OBJ(s).map((o) => o.key);
   return {
-    obj: [...s.ans].map((a, i) => (a === keys[i] ? 1 : 0)),
-    q11: [...s.q11], q12: [...s.q12], n11: s.n11, n12: s.n12,
-    f11en: s.fb11?.en ?? '', f11ar: s.fb11?.ar ?? '', f12en: s.fb12?.en ?? '', f12ar: s.fb12?.ar ?? '',
+    obj: [...(s.ans ?? '')].map((a, i) => (a === keys[i] ? 1 : 0)),
+    sq: s.short.map((q) => [...q.marks]), sn: s.short.map((q) => q.note ?? ''),
+    fen: s.short.map((q) => q.fb?.en ?? ''), far: s.short.map((q) => q.fb?.ar ?? ''),
     wLevel: s.writing?.level ?? '', wTip: s.writing?.tip_ar ?? '',
     summaryExtra: '', decision: '', reviewed: false,
   };
+}
+// Reviews saved before the page handled any number of questions used q11/q12 keys.
+function upgrade(rec) {
+  if (!('q11' in rec)) return rec;
+  const { q11, q12, n11, n12, f11en, f11ar, f12en, f12ar, ...rest } = rec;
+  return { ...rest, sq: [q11, q12], sn: [n11, n12], fen: [f11en, f12en], far: [f11ar, f12ar] };
 }
 const state = {};
 for (const s of DATA.students) state[s.id] = defaults(s);
 function merge(saved) {
   if (!saved || saved.batch !== A.id || !saved.students) return 0;
   let n = 0;
-  for (const [id, rec] of Object.entries(saved.students)) if (state[id]) { Object.assign(state[id], rec); n++; }
+  for (const [id, rec] of Object.entries(saved.students)) if (state[id]) { Object.assign(state[id], upgrade(rec)); n++; }
   return n;
 }
 merge(DATA.saved);
@@ -255,32 +263,37 @@ try {
 
 // ---------- scoring ----------
 const sum = (a) => a.reduce((x, y) => x + (+y || 0), 0);
-function total(id) { const r = state[id]; return sum(r.obj) + sum(r.q11) + sum(r.q12); }
+const round = (v, step) => Math.round(Math.round(v / step) * step * 100) / 100;
+function total(id) { const r = state[id]; return Math.round((sum(r.obj) + r.sq.reduce((t, q) => t + sum(q), 0)) * 100) / 100; }
 function isEdited(id) {
   const d = defaults(byId.get(id)), r = state[id];
-  return ['obj', 'q11', 'q12'].some((k) => r[k].some((v, i) => +v !== +d[k][i]))
-    || ['n11', 'n12', 'f11en', 'f11ar', 'f12en', 'f12ar', 'wLevel', 'wTip', 'summaryExtra'].some((k) => (r[k] ?? '') !== (d[k] ?? ''));
+  return r.obj.some((v, i) => +v !== +d.obj[i])
+    || r.sq.some((q, j) => q.some((v, k) => +v !== +d.sq[j][k]))
+    || ['sn', 'fen', 'far'].some((k) => r[k].some((v, j) => (v ?? '') !== (d[k][j] ?? '')))
+    || ['wLevel', 'wTip', 'summaryExtra'].some((k) => (r[k] ?? '') !== (d[k] ?? ''));
 }
 
 // ---------- feedback the student will see (same shape as the student page) ----------
 function feedback(id) {
-  const s = byId.get(id), r = state[id], V = A.versions[s.v];
+  const s = byId.get(id), r = state[id];
   const t = total(id), objOk = r.obj.every((x) => x === 1);
-  let summary = `You scored ${fmt(t)} out of ${A.max}.` + (objOk ? ' All your multiple-choice and true/false answers are correct.' : ' The questions you missed are explained below.');
+  let summary = `You scored ${fmt(t)} out of ${A.max}.` + (A.practice ? ' This is practice: it does not count towards your course grade.' : '')
+    + (!OBJ(s).length ? '' : objOk ? ' All your multiple-choice and true/false answers are correct.' : ' The questions you missed are explained below.');
   if (r.summaryExtra.trim()) summary += ' ' + r.summaryExtra.trim();
   const points = [];
-  V.objective.forEach((o, i) => {
+  OBJ(s).forEach((o, i) => {
     if (r.obj[i] === 1) return;
     const a = s.ans[i], word = (x) => (x === 'T' ? 'TRUE' : x === 'F' ? 'FALSE' : x);
     const chose = a === '-' ? 'You left this blank.' : a === 'X' ? 'You marked two answers, which scores 0.' : `You chose ${word(a)}.`;
     points.push({ ref: `Q${o.q} · ${o.topic}`, text: `${chose} The answer is ${word(o.key)}. ${o.why}` });
   });
-  V.short.forEach((q, j) => {
-    const parts = j === 0 ? r.q11 : r.q12, f = j === 0 ? 'f11' : 'f12';
+  SHORT(s).forEach((q, j) => {
     const max = sum(q.parts.map((p) => p.max));
-    points.push({ ref: `Q${q.q} · ${q.topic} · ${fmt(sum(parts))}/${max}`, text: r[f + 'en'] || (j === 0 ? r.n11 : r.n12), textAr: r[f + 'ar'] });
+    const marks = q.parts.length ? ` · ${fmt(sum(r.sq[j]))}/${fmt(max)}` : '';
+    if (!r.fen[j] && !r.far[j] && !q.parts.length) return;
+    points.push({ ref: `${q.label ?? 'Q' + q.q} · ${q.topic}${marks}`, text: r.fen[j] || r.sn[j], textAr: r.far[j] });
   });
-  const writing = r.wTip ? { level: r.wLevel, tipAr: r.wTip } : null;
+  const writing = WRITING && r.wTip ? { level: r.wLevel, tipAr: r.wTip } : null;
   return { summary, points, writing };
 }
 
@@ -313,7 +326,7 @@ function renderList() {
 
 // ---------- student view ----------
 function open(id) {
-  current = id; page = 2; zoom = 'fit';
+  current = id; page = A.startPage ?? 2; zoom = 'fit';
   renderMain(); renderList(); showPage();
   history.replaceState(null, '', '#' + id);
 }
@@ -321,10 +334,10 @@ function change(fn) { fn(); setDirty(true); renderList(); renderTotals(); render
 function renderTotals() {
   const t = total(current);
   $('#tot').textContent = `${fmt(t)} / ${A.max}`;
-  $('#scaled').textContent = `= ${fmt(Math.round(t / A.max * A.weight * 100) / 100)} من ${A.weight} من درجة المقرر`;
+  $('#scaled').textContent = A.weight ? `= ${fmt(Math.round(t / A.max * A.weight * 100) / 100)} من ${A.weight} من درجة المقرر` : 'للتدريب — لا تدخل في درجة المقرر';
   document.querySelectorAll('[data-qtotal]').forEach((el) => {
-    const j = +el.dataset.qtotal, parts = j === 0 ? state[current].q11 : state[current].q12;
-    el.textContent = `${fmt(sum(parts))} / ${sum(A.versions[byId.get(current).v].short[j].parts.map((p) => p.max))}`;
+    const j = +el.dataset.qtotal;
+    el.textContent = `${fmt(sum(state[current].sq[j]))} / ${fmt(sum(SHORT(byId.get(current))[j].parts.map((p) => p.max)))}`;
   });
 }
 function renderPreview() {
@@ -338,7 +351,7 @@ function renderPreview() {
       h('p', {}, mixed(fb.writing.tipAr))) : null);
 }
 function renderMain() {
-  const s = byId.get(current), r = state[current], V = A.versions[s.v], d = defaults(s);
+  const s = byId.get(current), r = state[current], d = defaults(s);
   const main = $('#main'); main.replaceChildren();
   const idx = DATA.students.findIndex((x) => x.id === current);
   const go = (k) => { const n = DATA.students[(idx + k + DATA.students.length) % DATA.students.length]; open(n.id); };
@@ -361,61 +374,65 @@ function renderMain() {
   }
 
   // objective questions
-  const rows = V.objective.map((o, i) => {
+  const rows = OBJ(s).map((o, i) => {
     const a = s.ans[i], right = a === o.key;
     const flagged = s.flags.some((f) => new RegExp(`\\bQ${o.q}\\b`).test(f));
     const seg = h('span', { class: 'seg' }, [0, 1].map((v) => h('button', { type: 'button', 'aria-pressed': r.obj[i] === v ? 'true' : 'false',
       'aria-label': `السؤال ${o.q}: ${v}`, onclick: () => change(() => { r.obj[i] = v; renderMain(); }) }, String(v))));
-    return h('tr', { class: flagged ? 'flagged' : null, onclick: () => setPage(o.q <= 7 ? 2 : 3) },
+    return h('tr', { class: flagged ? 'flagged' : null, onclick: () => setPage(o.page ?? (o.q <= 7 ? 2 : 3)) },
       h('td', {}, h('b', {}, o.q)),
       en('td', { class: 'topic' }, o.topic),
       h('td', {}, h('span', { class: 'letter ' + (right ? 'ok' : 'no'), title: a === 'X' ? 'خياران معلَّمان' : a === '-' ? 'لا شيء معلَّم' : null }, a === '-' ? '—' : a)),
       h('td', {}, h('span', { class: 'letter' }, o.key)),
       h('td', {}, seg, r.obj[i] !== d.obj[i] ? h('span', { class: 'changed' }, 'معدَّل') : null));
   });
-  main.append(h('section', { class: 'card' }, h('h2', {}, 'الاختيار من متعدد والصح والخطأ'),
+  if (rows.length) main.append(h('section', { class: 'card' }, h('h2', {}, 'الاختيار من متعدد والصح والخطأ'),
     h('table', { class: 'obj' }, h('thead', {}, h('tr', {}, ['#', 'الموضوع', 'إجابة الطالب', 'المفتاح', 'الدرجة'].map((x) => h('th', {}, x)))), h('tbody', {}, rows)),
     h('p', { class: 'rubric' }, 'X تعني خيارين معلَّمين، و— لا شيء معلَّم. التظليل الأصفر: سؤال فيه حالة ملتبسة.')));
 
   // short answers
-  V.short.forEach((q, j) => {
-    const key = j === 0 ? 'q11' : 'q12', nkey = j === 0 ? 'n11' : 'n12', fk = j === 0 ? 'f11' : 'f12';
-    const verbatim = (j === 0 ? s.parts11 : s.parts12) || null, text = j === 0 ? s.t11 : s.t12;
+  SHORT(s).forEach((q, j) => {
+    const sd = s.short[j];
+    const fbEdited = () => r.fen[j] !== d.fen[j] && r.far[j] !== d.far[j];
+    const marksSame = () => r.sq[j].every((x, i) => +x === +d.sq[j][i]);
     const parts = q.parts.map((p, k) => {
-      const inp = h('input', { type: 'number', min: 0, max: p.max, step: 0.5, value: r[key][k], class: +r[key][k] !== +d[key][k] ? 'edited' : null,
-        'aria-label': `${q.q} ${p.label}`,
+      const step = p.step ?? 0.5;
+      const inp = h('input', { type: 'number', min: 0, max: p.max, step, value: r.sq[j][k], class: +r.sq[j][k] !== +d.sq[j][k] ? 'edited' : null,
+        'aria-label': `${q.label ?? q.q} ${p.label}`,
         oninput: (e) => {
           let v = parseFloat(e.target.value); if (Number.isNaN(v)) return;
-          v = Math.max(0, Math.min(p.max, Math.round(v * 2) / 2));
-          change(() => { r[key][k] = v; });
-          e.target.classList.toggle('edited', +v !== +d[key][k]);
-          stale.hidden = (r[fk + 'en'] !== d[fk + 'en'] && r[fk + 'ar'] !== d[fk + 'ar']) || r[key].every((x, i) => +x === +d[key][i]);
+          v = Math.max(0, Math.min(p.max, round(v, step)));
+          change(() => { r.sq[j][k] = v; });
+          e.target.classList.toggle('edited', +v !== +d.sq[j][k]);
+          stale.hidden = fbEdited() || marksSame();
         } });
-      return h('div', { class: 'part' }, en('label', {}, p.label), inp, h('span', { class: 'of' }, ` / ${p.max}`));
+      return h('div', { class: 'part' }, en('label', {}, p.label), inp, h('span', { class: 'of' }, ` / ${fmt(p.max)}`));
     });
-    const stale = h('p', { class: 'stale', hidden: (r[fk + 'en'] !== d[fk + 'en'] && r[fk + 'ar'] !== d[fk + 'ar']) || r[key].every((v, k) => +v === +d[key][k]) }, 'غيّرتَ الدرجة: حدّث التوضيح للطالب بالإنجليزية والعربية ليوافق الدرجة الجديدة.');
-    const isAr = (t) => /[\u0600-\u06FF]/.test(t);
+    const stale = h('p', { class: 'stale', hidden: fbEdited() || marksSame() }, 'غيّرتَ الدرجة: حدّث التوضيح للطالب بالإنجليزية والعربية ليوافق الدرجة الجديدة.');
+    const isAr = (t) => /[؀-ۿ]/.test(t);
+    const verbatim = sd.parts;
     const answer = verbatim
       ? h('dl', { class: 'answer verbatim' }, verbatim.flatMap((p) => [en('dt', {}, p.label),
           p.text ? h('dd', { dir: isAr(p.text) ? 'rtl' : 'ltr', lang: isAr(p.text) ? 'ar' : 'en', class: isAr(p.text) ? 'ar-text' : 'en' }, isAr(p.text) ? mixed(p.text) : p.text) : h('dd', { class: 'blank' }, '(فارغ)')]))
-      : en('div', { class: 'answer' }, text.split(' | ').join('\n'));
+      : en('div', { class: 'answer' }, (sd.text ?? '').split(' | ').join('\n'));
     const ta = (k, lang, label) => [h('label', { class: 'lbl', for: `${k}${j}` }, label),
       h('textarea', { id: `${k}${j}`, dir: lang === 'ar' ? 'rtl' : 'ltr', lang, class: lang === 'en' ? 'en' : null,
-        oninput: (e) => { change(() => { r[k] = e.target.value; }); stale.hidden = true; } }, r[k])];
-    main.append(h('section', { class: 'card', onfocusin: () => setPage(3), onclick: () => setPage(3) },
-      h('h2', {}, `السؤال ${q.q} · `, en('span', {}, q.topic)),
+        oninput: (e) => { change(() => { r[k][j] = e.target.value; }); stale.hidden = true; } }, r[k][j])];
+    const pg = q.page ?? 3;
+    main.append(h('section', { class: 'card', onfocusin: () => setPage(pg), onclick: () => setPage(pg) },
+      h('h2', {}, `${q.labelAr ?? 'السؤال ' + q.q} · `, en('span', {}, q.topic)),
       h('span', { class: 'lbl' }, 'إجابة الطالب كما كتبها حرفياً (بأخطائه)'),
       answer,
-      h('div', { class: 'parts' }, parts, h('span', { class: 'qtotal', 'data-qtotal': j })),
-      en('p', { class: 'rubric' }, q.rubric),
-      h('label', { class: 'lbl', for: `n${j}` }, 'سبب الدرجة — ملاحظة لك، لا تظهر للطالب'),
-      en('textarea', { id: `n${j}`, class: 'note', oninput: (e) => change(() => { r[nkey] = e.target.value; }) }, r[nkey]),
-      ...ta(fk + 'en', 'en', 'توضيح للطالب بالإنجليزية — يظهر في صفحته'),
-      ...ta(fk + 'ar', 'ar', 'توضيح للطالب بالعربية — يظهر تحته'),
+      q.parts.length ? h('div', { class: 'parts' }, parts, h('span', { class: 'qtotal', 'data-qtotal': j })) : h('p', { class: 'rubric' }, 'تغذية راجعة فقط — بلا درجة.'),
+      q.rubric ? en('p', { class: 'rubric' }, q.rubric) : null,
+      h('label', { class: 'lbl', for: `sn${j}` }, 'سبب الدرجة — ملاحظة لك، لا تظهر للطالب'),
+      en('textarea', { id: `sn${j}`, class: 'note', oninput: (e) => change(() => { r.sn[j] = e.target.value; }) }, r.sn[j]),
+      ...ta('fen', 'en', 'توضيح للطالب بالإنجليزية — يظهر في صفحته'),
+      ...ta('far', 'ar', 'توضيح للطالب بالعربية — يظهر تحته'),
       stale));
   });
 
-  main.append(h('section', { class: 'card writing' }, h('h2', {}, 'نصيحة في الكتابة بالإنجليزية (لا تؤثر في الدرجة)'),
+  if (WRITING) main.append(h('section', { class: 'card writing' }, h('h2', {}, 'نصيحة في الكتابة بالإنجليزية (لا تؤثر في الدرجة)'),
     h('label', { class: 'lbl', for: 'wLevel' }, 'مستوى الكتابة'),
     h('select', { id: 'wLevel', onchange: (e) => change(() => { r.wLevel = e.target.value; }) },
       Object.entries({ '': '—', ...LEVELS }).map(([v, t]) => h('option', { value: v, selected: r.wLevel === v }, t))),
@@ -444,6 +461,7 @@ function applyZoom() {
   const fit = stage.clientWidth - 16;
   img.style.width = zoom === 'fit' ? `${fit}px` : `${Math.round(fit * zoom)}px`;
 }
+$('#pageBtns').replaceChildren(...Array.from({ length: PAGES }, (_, i) => h('button', { class: 'btn', 'data-page': i + 1, type: 'button', 'aria-pressed': 'false' }, `صفحة ${i + 1}`)));
 document.querySelectorAll('[data-page]').forEach((b) => b.addEventListener('click', () => { page = +b.dataset.page; showPage(); stage.scrollTop = 0; }));
 $('#zoomIn').addEventListener('click', () => { zoom = (zoom === 'fit' ? 1 : zoom) * 1.4; applyZoom(); });
 $('#zoomOut').addEventListener('click', () => { zoom = Math.max(1, (zoom === 'fit' ? 1 : zoom) / 1.4); applyZoom(); });
