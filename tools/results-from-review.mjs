@@ -9,6 +9,7 @@
 // The feedback built here is the same as the preview on the review page.
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeHub } from './review-hub.mjs';
 import { dataDir, argValue, readCsv, fail } from './lib.mjs';
 
 const batch = argValue('--batch') ?? fail('Give the batch name, e.g. --batch PQ');
@@ -103,3 +104,4 @@ const file = path.join(DATA, 'results', `${A.id}.json`);
 fs.writeFileSync(file, JSON.stringify(out, null, 2) + '\n');
 const scores = Object.values(students).map((s) => s.score);
 console.log(`${file}: ${scores.length} students, mean ${fmt(sum(scores) / scores.length)} / ${A.max}, ${approval ? 'APPROVED' : 'not approved'}${saved ? ', with saved review' : ''}.`);
+writeHub(DATA);

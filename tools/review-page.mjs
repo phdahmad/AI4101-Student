@@ -12,6 +12,7 @@
 // never copied to dist/ or published.
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeHub } from './review-hub.mjs';
 import { REPO, dataDir, argValue, readCsv, fail } from './lib.mjs';
 
 const batch = argValue('--batch') ?? fail('Give the batch name, e.g. --batch Q1');
@@ -61,3 +62,4 @@ fs.writeFileSync(out, template.replace('/*__DATA__*/', () => json));
 console.log(`Review page: ${out}`);
 console.log(`${students.length} students${saved ? `, saved review from ${saved.savedAt} included` : ''}.`);
 console.log('Open it in Chrome or Edge. Saving writes ' + `${batch}.review.json` + ' into this folder.');
+writeHub(DATA);
