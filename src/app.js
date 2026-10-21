@@ -3,9 +3,9 @@
 import {
   ITERATIONS, normalizeId, normalizeToken, fromHex,
   deriveMaster, locatorOf, decryptBundle, unpackPayload,
-} from './crypto.js?v=4';
-import { createViewer } from './viewer.js?v=4';
-import { t, getLang, applyLang } from './i18n.js?v=4';
+} from './crypto.js?v=5';
+import { createViewer } from './viewer.js?v=5';
+import { t, getLang, applyLang } from './i18n.js?v=5';
 
 const IDLE_MS = 15 * 60 * 1000;
 const THEME_KEY = 'ai4101_portal_theme';
@@ -43,6 +43,12 @@ const fmtDate = (iso) => {
 };
 // English course content inside an Arabic page keeps its own direction.
 const en = (tag, attrs, ...kids) => h(tag, { ...attrs, dir: 'ltr', lang: 'en' }, ...kids);
+// Arabic text that quotes English: isolate each Latin run so the word order stays right.
+function mixed(text) {
+  return String(text).split(/("[^"\u0600-\u06FF]*"|“[^”\u0600-\u06FF]*”|'[A-Za-z][^'\u0600-\u06FF]*'|[A-Za-z][^\u0600-\u06FF"“”«»،؛]*[A-Za-z0-9.!?)'’])/)
+    .map((part, i) => (i % 2 ? h('bdi', { dir: 'ltr', lang: 'en' }, part) : part));
+}
+const arText = (text) => text && h('span', { class: 'pt-ar', dir: 'rtl', lang: 'ar' }, mixed(text));
 
 // ---------- language ----------
 applyLang();
@@ -238,12 +244,13 @@ function feedbackList(fb) {
     cards.push(h('li', {},
       ref && h('span', { class: 'ref' }, ref),
       h('span', { class: 'pt-text' }, text),
-      details.length && h('ul', { class: 'subpoints' }, details.map((p) =>
-        h('li', {}, h('span', { class: 'subref' }, p.ref), h('span', {}, p.text))))));
+      arText(fb.summaryAr),
+      details.length > 0 && h('ul', { class: 'subpoints' }, details.map((p) =>
+        h('li', {}, h('span', { class: 'subref' }, p.ref), h('span', {}, p.text), arText(p.textAr))))));
   }
   for (const p of points) {
     if (fb.summary && isDetail(p)) continue;
-    cards.push(h('li', {}, p.ref && h('span', { class: 'ref' }, p.ref), h('span', { class: 'pt-text' }, p.text)));
+    cards.push(h('li', {}, p.ref && h('span', { class: 'ref' }, p.ref), h('span', { class: 'pt-text' }, p.text), arText(p.textAr)));
   }
   return en('ul', { class: 'points' }, cards);
 }
@@ -272,6 +279,7 @@ function renderItem(id) {
 
   const intro = {
     completed: it.graded ? null : t('introCompleted'),
+    graded: it.graded ? null : t('introPractice'),
     not_submitted: t('introMissing'),
     excused: t('introExcused'),
   }[it.status];
@@ -280,7 +288,9 @@ function renderItem(id) {
   if (intro || fb) {
     const panel = h('section', { class: 'card panel', 'aria-labelledby': 'fbTitle' }, h('h2', { id: 'fbTitle' }, fb ? t('feedback') : t('statusTitle')));
     if (intro) panel.append(h('p', { class: 'muted' }, intro));
-    if (fb && t('feedbackLang')) panel.append(h('p', { class: 'fb-lang' }, t('feedbackLang')));
+    const hasAr = fb && [fb.summaryAr, ...(fb.points ?? []).map((p) => p.textAr)].some(Boolean);
+    const langNote = hasAr ? t('feedbackLangBoth') : t('feedbackLang');
+    if (fb && langNote) panel.append(h('p', { class: 'fb-lang' }, langNote));
     if (fb) panel.append(feedbackList(fb));
     if (fb) panel.append(h('p', { class: 'review-note' }, t('reviewed')));
     parts.push(panel);

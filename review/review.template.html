@@ -277,7 +277,7 @@ function isEdited(id) {
 function feedback(id) {
   const s = byId.get(id), r = state[id];
   const t = total(id), objOk = r.obj.every((x) => x === 1);
-  let summary = `You scored ${fmt(t)} out of ${A.max}.` + (A.practice ? ' This is practice: it does not count towards your course grade.' : '')
+  let summary = `You scored ${fmt(t)} out of ${A.max}.`
     + (!OBJ(s).length ? '' : objOk ? ' All your multiple-choice and true/false answers are correct.' : ' The questions you missed are explained below.');
   if (r.summaryExtra.trim()) summary += ' ' + r.summaryExtra.trim();
   const points = [];

@@ -284,3 +284,5 @@ input[dir="ltr"] { text-align: left; }
 .subpoints { margin-top: 12px; }
 .subpoints li { border-inline-start: 3px solid var(--miss-ink); }
 .subpoints .subref { color: var(--miss-ink); }
+
+.pt-ar { display: block; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); text-align: start; unicode-bidi: plaintext; }
